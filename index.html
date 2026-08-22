@@ -267,12 +267,20 @@
       <section class="first">
         <div class="section-title">✅ Completed this week</div>
         <div class="section-hint">One bullet per task/ticket. Link to Jira/PR where relevant.</div>
+        <div class="meta-field" style="margin-bottom:8px; max-width:320px;">
+          <label>Related ticket (optional)</label>
+          <select id="completedTicket"><option value="">— none —</option></select>
+        </div>
         <textarea id="completed" placeholder="- Finished API integration for login (JIRA-142)"></textarea>
       </section>
 
       <section>
         <div class="section-title">🔄 In progress</div>
         <div class="section-hint">What's still open, % done if useful.</div>
+        <div class="meta-field" style="margin-bottom:8px; max-width:320px;">
+          <label>Related ticket (optional)</label>
+          <select id="inProgressTicket"><option value="">— none —</option></select>
+        </div>
         <textarea id="inProgress" placeholder="- Dashboard redesign (~60%)"></textarea>
       </section>
 
@@ -378,6 +386,7 @@
         <label>Status</label>
         <select id="taskFilterStatus">
           <option value="">All</option>
+          <option value="Assigned">Assigned (awaiting accept)</option>
           <option value="Not Started">Not Started</option>
           <option value="In Progress">In Progress</option>
           <option value="Blocked">Blocked</option>
@@ -794,6 +803,7 @@ function finishLogin(name, admin) {
   });
   loadAllTasks().then(() => {
     renderMyTasks();
+    renderMyTicketDropdowns();
   });
 }
 
@@ -807,6 +817,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'submit') { loadAllTasks().then(renderMyTicketDropdowns); }
     if (tab.dataset.tab === 'mine') { loadAllEntries().then(renderMineHistory); }
     if (tab.dataset.tab === 'mytasks') { loadAllTasks().then(renderMyTasks); }
     if (tab.dataset.tab === 'history') { loadAllEntries().then(renderHistory); }
@@ -858,7 +869,9 @@ async function submitUpdate() {
     week_number: weekInfo ? weekInfo.week : null,
     week_year: weekInfo ? weekInfo.year : null,
     completed: document.getElementById('completed').value,
+    completed_ticket_id: document.getElementById('completedTicket').value || null,
     in_progress: document.getElementById('inProgress').value,
+    in_progress_ticket_id: document.getElementById('inProgressTicket').value || null,
     cat_dev: Number(document.getElementById('catDev').value) || 0,
     cat_research: Number(document.getElementById('catResearch').value) || 0,
     cat_testing: Number(document.getElementById('catTesting').value) || 0,
@@ -885,6 +898,8 @@ async function submitUpdate() {
 
 function clearForm() {
   document.querySelectorAll('#panel-submit input, #panel-submit textarea').forEach(el => el.value = '');
+  document.getElementById('completedTicket').value = '';
+  document.getElementById('inProgressTicket').value = '';
   document.getElementById('status').textContent = 'Form cleared.';
   setTimeout(() => document.getElementById('status').textContent = '', 1500);
 }
@@ -901,7 +916,9 @@ async function loadAllEntries() {
       weekNumber: e.week_number,
       weekYear: e.week_year,
       completed: e.completed,
+      completedTicketId: e.completed_ticket_id,
       inProgress: e.in_progress,
+      inProgressTicketId: e.in_progress_ticket_id,
       catDev: e.cat_dev,
       catResearch: e.cat_research,
       catTesting: e.cat_testing,
@@ -983,8 +1000,8 @@ function entryCardHtml(e) {
         <span class="entry-name">${escapeHtml(e.name)}</span>
         <span class="entry-week">${e.weekOf} &middot; ${e.weekNumber ? 'Week ' + e.weekNumber + ', ' + e.weekYear : formatWeekLabel(e.weekOf)}</span>
       </div>
-      ${blockHtml('Completed', e.completed)}
-      ${blockHtml('In progress', e.inProgress)}
+      ${blockHtml('Completed', e.completed, e.completedTicketId)}
+      ${blockHtml('In progress', e.inProgress, e.inProgressTicketId)}
       ${blockHtml('Learned / discovered', e.learned)}
       ${e.blocked && e.blocked.trim() ? `<div class="entry-block blocked"><div class="label">Blocked on</div><pre>${escapeHtml(e.blocked)}</pre></div>` : ''}
       ${blockHtml('Next week', e.nextWeek)}
@@ -992,9 +1009,10 @@ function entryCardHtml(e) {
   `;
 }
 
-function blockHtml(label, val) {
+function blockHtml(label, val, ticketId) {
   if (!val || !val.trim()) return '';
-  return `<div class="entry-block"><div class="label">${label}</div><pre>${escapeHtml(val)}</pre></div>`;
+  const ticketTag = ticketId ? ` <span style="font-family:monospace; color:var(--accent); font-weight:700; font-size:11px;">[${escapeHtml(ticketId)}]</span>` : '';
+  return `<div class="entry-block"><div class="label">${label}${ticketTag}</div><pre>${escapeHtml(val)}</pre></div>`;
 }
 
 async function deleteEntry(key) {
@@ -1054,6 +1072,7 @@ async function loadAllTasks() {
     allTasks = (tasks || []).map(t => ({
       key: t.id,
       id: t.id,
+      ticketId: t.ticket_id,
       title: t.title,
       description: t.description,
       assignee: t.assignee,
@@ -1061,6 +1080,8 @@ async function loadAllTasks() {
       dueDate: t.due_date,
       priority: t.priority,
       status: t.status,
+      assignedAt: t.assigned_at,
+      acceptedAt: t.accepted_at,
       createdAt: t.created_at,
       comments: (comments || []).filter(c => c.task_id === t.id).map(c => ({
         author: c.author, text: c.text, at: c.created_at
@@ -1097,16 +1118,17 @@ async function assignTask() {
     return;
   }
   try {
-    const { error } = await sb.from('tasks').insert({
+    const { data, error } = await sb.from('tasks').insert({
       title, description,
       due_date: dueDate || null,
       priority,
       assignee,
       assigned_by: currentUser,
-      status: 'Not Started'
-    });
+      status: 'Assigned',
+      assigned_at: new Date().toISOString()
+    }).select('ticket_id').single();
     if (error) throw error;
-    statusEl.textContent = `Task assigned to ${assignee}.`;
+    statusEl.textContent = `Task ${data.ticket_id} assigned to ${assignee}.`;
     document.getElementById('taskTitle').value = '';
     document.getElementById('taskDescription').value = '';
     document.getElementById('taskDueDate').value = '';
@@ -1122,7 +1144,7 @@ function renderMyTasks() {
   if (!currentUser) { div.innerHTML = ''; return; }
   const mine = allTasks.filter(t => t.assignee.toLowerCase() === currentUser.toLowerCase())
     .sort((a, b) => {
-      const order = { 'Blocked': 0, 'In Progress': 1, 'Not Started': 2, 'Done': 3 };
+      const order = { 'Assigned': 0, 'Blocked': 1, 'In Progress': 2, 'Not Started': 3, 'Done': 4 };
       return (order[a.status] ?? 9) - (order[b.status] ?? 9);
     });
   if (mine.length === 0) { div.innerHTML = '<div class="empty">No tasks assigned to you yet.</div>'; return; }
@@ -1131,7 +1153,7 @@ function renderMyTasks() {
 
 function taskCardHtml(t, showAssignee) {
   const statusColors = {
-    'Not Started': '#6b6b6b', 'In Progress': '#2f5d8a', 'Blocked': '#a83232', 'Done': '#2f8a4e'
+    'Assigned': '#a86a2f', 'Not Started': '#6b6b6b', 'In Progress': '#2f5d8a', 'Blocked': '#a83232', 'Done': '#2f8a4e'
   };
   const commentsHtml = (t.comments || []).map(c => `
     <div style="border-top:1px solid var(--line); padding:8px 0; font-size:13px;">
@@ -1139,19 +1161,32 @@ function taskCardHtml(t, showAssignee) {
       <div>${escapeHtml(c.text)}</div>
     </div>
   `).join('');
+  const needsAccept = t.status === 'Assigned';
+  const timelineHtml = `
+    <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">
+      Assigned ${t.assignedAt ? new Date(t.assignedAt).toLocaleString() : '—'}
+      ${t.acceptedAt ? ' &middot; Accepted ' + new Date(t.acceptedAt).toLocaleString() : ''}
+    </div>
+  `;
   return `
     <div class="entry-card">
       <div class="entry-head">
-        <span class="entry-name">${escapeHtml(t.title)} ${showAssignee ? `<span style="font-weight:400; color:var(--muted); font-size:12px;">&rarr; ${escapeHtml(t.assignee)}</span>` : ''}</span>
+        <span class="entry-name">
+          <span style="font-family:monospace; color:var(--accent); font-weight:700;">${escapeHtml(t.ticketId || '')}</span>
+          &nbsp;${escapeHtml(t.title)} ${showAssignee ? `<span style="font-weight:400; color:var(--muted); font-size:12px;">&rarr; ${escapeHtml(t.assignee)}</span>` : ''}
+        </span>
         <span class="entry-week">${t.dueDate ? 'Due ' + t.dueDate : ''}</span>
       </div>
+      ${timelineHtml}
       ${t.description ? `<div class="entry-block"><pre>${escapeHtml(t.description)}</pre></div>` : ''}
       <div style="display:flex; gap:10px; align-items:center; margin:10px 0; flex-wrap:wrap;">
         <span style="font-size:12px; font-weight:600; color:${statusColors[t.status] || '#6b6b6b'};">● ${escapeHtml(t.status)}</span>
         <span style="font-size:12px; color:var(--muted);">Priority: ${escapeHtml(t.priority || 'Normal')}</span>
-        <select onchange="updateTaskStatus('${t.key}', this.value)" style="font-size:12px; padding:4px 6px; border:1px solid var(--line); border-radius:6px;">
-          ${['Not Started','In Progress','Blocked','Done'].map(s => `<option value="${s}" ${s===t.status?'selected':''}>${s}</option>`).join('')}
-        </select>
+        ${needsAccept
+          ? `<button class="btn-primary" style="padding:6px 14px; font-size:12px;" onclick="acceptTask('${t.key}')">Accept Task</button>`
+          : `<select onchange="updateTaskStatus('${t.key}', this.value)" style="font-size:12px; padding:4px 6px; border:1px solid var(--line); border-radius:6px;">
+              ${['Not Started','In Progress','Blocked','Done'].map(s => `<option value="${s}" ${s===t.status?'selected':''}>${s}</option>`).join('')}
+            </select>`}
         ${showAssignee ? `<button class="del-btn" onclick="deleteTask('${t.key}')">delete</button>` : ''}
       </div>
       <div>${commentsHtml}</div>
@@ -1163,6 +1198,40 @@ function taskCardHtml(t, showAssignee) {
   `;
 }
 
+// ---------- Submit Update: ticket dropdowns ----------
+function renderMyTicketDropdowns() {
+  const completedSel = document.getElementById('completedTicket');
+  const inProgressSel = document.getElementById('inProgressTicket');
+  if (!completedSel || !inProgressSel) return;
+  if (!currentUser) return;
+  const mine = allTasks
+    .filter(t => t.assignee.toLowerCase() === currentUser.toLowerCase() && t.status !== 'Assigned')
+    .sort((a, b) => (b.acceptedAt || '').localeCompare(a.acceptedAt || ''));
+  const options = '<option value="">— none —</option>' +
+    mine.map(t => `<option value="${escapeHtml(t.ticketId)}">${escapeHtml(t.ticketId)} — ${escapeHtml(t.title)}</option>`).join('');
+  const curCompleted = completedSel.value, curInProgress = inProgressSel.value;
+  completedSel.innerHTML = options;
+  inProgressSel.innerHTML = options;
+  completedSel.value = curCompleted;
+  inProgressSel.value = curInProgress;
+}
+
+async function acceptTask(key) {
+  try {
+    const { error } = await sb.from('tasks').update({
+      status: 'Not Started',
+      accepted_at: new Date().toISOString()
+    }).eq('id', key);
+    if (error) throw error;
+    await loadAllTasks();
+    if (document.getElementById('panel-mytasks').classList.contains('active')) renderMyTasks();
+    if (document.getElementById('panel-tasksboard').classList.contains('active')) renderTasksBoard();
+    renderMyTicketDropdowns();
+  } catch (e) {
+    alert('Could not accept task: ' + e.message);
+  }
+}
+
 async function updateTaskStatus(key, status) {
   try {
     const { error } = await sb.from('tasks').update({ status }).eq('id', key);
@@ -1170,6 +1239,7 @@ async function updateTaskStatus(key, status) {
     await loadAllTasks();
     if (document.getElementById('panel-mytasks').classList.contains('active')) renderMyTasks();
     if (document.getElementById('panel-tasksboard').classList.contains('active')) renderTasksBoard();
+    renderMyTicketDropdowns();
   } catch (e) {
     alert('Could not update status: ' + e.message);
   }
@@ -1224,12 +1294,14 @@ function renderTasksBoard() {
   if (statusFilter.value) filtered = filtered.filter(t => t.status === statusFilter.value);
 
   const total = filtered.length;
+  const awaitingAccept = filtered.filter(t => t.status === 'Assigned').length;
   const notStarted = filtered.filter(t => t.status === 'Not Started').length;
   const inProgress = filtered.filter(t => t.status === 'In Progress').length;
   const blocked = filtered.filter(t => t.status === 'Blocked').length;
   const done = filtered.filter(t => t.status === 'Done').length;
   document.getElementById('taskSummaryRow').innerHTML = `
     <div class="summary-card"><div class="num-big">${total}</div><div class="cap">Total tasks</div></div>
+    <div class="summary-card"><div class="num-big">${awaitingAccept}</div><div class="cap">Awaiting accept</div></div>
     <div class="summary-card"><div class="num-big">${notStarted}</div><div class="cap">Not started</div></div>
     <div class="summary-card"><div class="num-big">${inProgress}</div><div class="cap">In progress</div></div>
     <div class="summary-card"><div class="num-big">${blocked}</div><div class="cap">Blocked</div></div>
