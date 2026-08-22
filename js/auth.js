@@ -86,12 +86,13 @@ function renderAdminList() {
   if (!body) return;
   const admins = PROFILES.filter(p => p.is_admin);
   if (admins.length === 0) {
-    body.innerHTML = '<tr><td colspan="2" class="empty">No admins configured.</td></tr>';
+    body.innerHTML = '<tr><td colspan="3" class="empty">No admins configured.</td></tr>';
     return;
   }
   body.innerHTML = admins.map(a => `
     <tr>
       <td>${escapeHtml(a.username)}</td>
+      ${passwordChangeCellHtml(a.username)}
       <td><button class="del-btn" onclick="removeAdmin('${escapeHtml(a.username)}')">remove</button></td>
     </tr>
   `).join('');

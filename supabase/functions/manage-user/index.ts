@@ -115,6 +115,24 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true }, 200);
     }
 
+    if (action === 'set-password') {
+      if (!password) {
+        return jsonResponse({ error: 'password is required' }, 400);
+      }
+      const { data: profile } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('username', username.toLowerCase())
+        .single();
+      if (!profile) {
+        return jsonResponse({ error: 'User not found' }, 404);
+      }
+      const { error: pwErr } = await admin.auth.admin.updateUserById(profile.id, { password });
+      if (pwErr) throw pwErr;
+
+      return jsonResponse({ ok: true }, 200);
+    }
+
     if (action === 'remove') {
       const { data: profile } = await admin
         .from('profiles')

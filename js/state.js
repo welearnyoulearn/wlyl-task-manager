@@ -34,17 +34,65 @@ async function callManageUser(payload) {
   return body;
 }
 
+// ---------- Shared: change-password row (used by both admin and member tables) ----------
+function passwordChangeCellHtml(username) {
+  const safeId = username.replace(/[^a-z0-9]/gi, '_');
+  return `
+    <td>
+      <span id="pwToggle_${safeId}"><button class="btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="showPasswordChangeRow('${escapeHtml(username)}')">change password</button></span>
+      <span id="pwRow_${safeId}" style="display:none; align-items:center; gap:6px;">
+        <input type="password" id="pwInput_${safeId}" placeholder="New password" style="padding:5px 8px; font-size:12px; border:1px solid var(--line); border-radius:6px; width:130px;">
+        <button class="btn-primary" style="padding:4px 10px; font-size:12px;" onclick="submitPasswordChange('${escapeHtml(username)}')">Save</button>
+        <button class="btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="cancelPasswordChange('${escapeHtml(username)}')">Cancel</button>
+      </span>
+    </td>
+  `;
+}
+
+function showPasswordChangeRow(username) {
+  const safeId = username.replace(/[^a-z0-9]/gi, '_');
+  document.getElementById('pwToggle_' + safeId).style.display = 'none';
+  const row = document.getElementById('pwRow_' + safeId);
+  row.style.display = 'inline-flex';
+  document.getElementById('pwInput_' + safeId).focus();
+}
+
+function cancelPasswordChange(username) {
+  const safeId = username.replace(/[^a-z0-9]/gi, '_');
+  document.getElementById('pwRow_' + safeId).style.display = 'none';
+  document.getElementById('pwToggle_' + safeId).style.display = '';
+  document.getElementById('pwInput_' + safeId).value = '';
+}
+
+async function submitPasswordChange(username) {
+  const safeId = username.replace(/[^a-z0-9]/gi, '_');
+  const input = document.getElementById('pwInput_' + safeId);
+  const pw = input.value;
+  if (!pw || pw.length < 6) {
+    alert('Password must be at least 6 characters.');
+    return;
+  }
+  try {
+    await callManageUser({ action: 'set-password', username, password: pw });
+    cancelPasswordChange(username);
+    alert(`Password updated for ${username}.`);
+  } catch (e) {
+    alert('Could not update password: ' + e.message);
+  }
+}
+
 function renderMemberList() {
   const body = document.getElementById('memberListBody');
   if (!body) return;
   const members = PROFILES.filter(p => !p.is_admin);
   if (members.length === 0) {
-    body.innerHTML = '<tr><td colspan="2" class="empty">No members added yet.</td></tr>';
+    body.innerHTML = '<tr><td colspan="3" class="empty">No members added yet.</td></tr>';
     return;
   }
   body.innerHTML = members.map(m => `
     <tr>
       <td>${escapeHtml(m.username)}</td>
+      ${passwordChangeCellHtml(m.username)}
       <td><button class="del-btn" onclick="removeMember('${escapeHtml(m.username)}')">remove</button></td>
     </tr>
   `).join('');
