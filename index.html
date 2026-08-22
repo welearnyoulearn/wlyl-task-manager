@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Weekly Update Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -68,15 +71,84 @@
   </div>
 
   <!-- LOGGED-OUT LANDING PANEL -->
-  <div id="landingPanel" class="sheet" style="text-align:center; padding:56px 30px; background:#fff; position:relative; overflow:hidden;">
-    <div style="position:absolute; inset:0; background:radial-gradient(600px 260px at 50% 0%, rgba(47,93,138,0.06), transparent 70%); pointer-events:none;"></div>
-    <div style="position:relative;">
-      <div style="font-size:38px; margin-bottom:10px;">📋</div>
-      <div style="font-size:19px; font-weight:700; margin-bottom:8px;">Welcome to the Weekly Update Tracker</div>
-      <div style="color:var(--muted); font-size:14px; max-width:420px; margin:0 auto 26px; line-height:1.6;">
-        Sign in to submit your weekly update, track your tasks, and see what the team has been shipping.
+  <div id="landingPanel" class="landing">
+    <div class="landing-manifesto">
+      <div class="landing-eyebrow">WLYL &middot; Weekly Update Tracker</div>
+      <h2 class="landing-headline">Small updates.<br>Compounding progress.</h2>
+      <p class="landing-sub">Every task logged and every ticket closed adds up. This is where the team's week becomes the team's momentum.</p>
+
+      <div class="landing-quotes">
+        <blockquote class="landing-quote landing-quote-lead">
+          <p>“Every update tells a part of our journey. By recording what we do, sharing our progress, and learning from each week, we turn small contributions into meaningful results and build a stronger future together.”</p>
+        </blockquote>
+        <div class="landing-quote-pair">
+          <blockquote class="landing-quote">
+            <p>“Great things are built through consistent progress.”</p>
+          </blockquote>
+          <blockquote class="landing-quote">
+            <p>“Keep moving forward — every update is a step toward success.”</p>
+          </blockquote>
+        </div>
       </div>
-      <button class="btn-primary" style="padding:12px 28px; font-size:14px;" onclick="openAuthModal()">Sign in to get started</button>
+    </div>
+
+    <div class="landing-access">
+      <div class="landing-access-card">
+        <div class="landing-access-title">Sign in</div>
+        <div class="landing-access-hint">Choose how you're joining this week.</div>
+
+        <div class="landing-login-grid">
+          <div class="landing-login-box" id="memberBox">
+            <div class="landing-login-box-header" onclick="toggleLandingBox('member')">
+              <div class="landing-login-box-icon">◐</div>
+              <div>
+                <div class="landing-login-box-title">Member</div>
+                <div class="landing-login-box-hint">Submit updates, track your tasks</div>
+              </div>
+              <span class="landing-login-chevron" id="memberBoxChevron">&rsaquo;</span>
+            </div>
+            <div class="landing-login-fields" id="memberBoxFields" style="display:none;">
+              <div class="meta-field" style="margin-bottom:10px; text-align:left;">
+                <label>Username</label>
+                <input type="text" id="memberBoxUsername" placeholder="Enter your username">
+              </div>
+              <div class="meta-field" style="margin-bottom:14px; text-align:left;">
+                <label>Password</label>
+                <input type="password" id="memberBoxPassword" placeholder="Password" onkeydown="if(event.key==='Enter') loginFromLanding('member')">
+              </div>
+              <button class="btn-primary" style="width:100%;" onclick="loginFromLanding('member')">Sign in as Member</button>
+              <div class="status" id="memberBoxStatus"></div>
+            </div>
+          </div>
+
+          <div class="landing-login-box" id="adminBox">
+            <div class="landing-login-box-header" onclick="toggleLandingBox('admin')">
+              <div class="landing-login-box-icon">◆</div>
+              <div>
+                <div class="landing-login-box-title">Admin</div>
+                <div class="landing-login-box-hint">Manage tasks, tickets, the team</div>
+              </div>
+              <span class="landing-login-chevron" id="adminBoxChevron">&rsaquo;</span>
+            </div>
+            <div class="landing-login-fields" id="adminBoxFields" style="display:none;">
+              <div class="meta-field" style="margin-bottom:10px; text-align:left;">
+                <label>Admin username</label>
+                <input type="text" id="adminBoxUsername" placeholder="Enter your admin username">
+              </div>
+              <div class="meta-field" style="margin-bottom:14px; text-align:left;">
+                <label>Admin password</label>
+                <input type="password" id="adminBoxPassword" placeholder="Password" onkeydown="if(event.key==='Enter') loginFromLanding('admin')">
+              </div>
+              <button class="btn-primary" style="width:100%;" onclick="loginFromLanding('admin')">Sign in as Admin</button>
+              <div class="status" id="adminBoxStatus"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="landing-setup-link">
+          First time here? <a href="#" onclick="openAuthModal(); return false;">Set up the first admin account</a>.
+        </div>
+      </div>
     </div>
   </div>
 

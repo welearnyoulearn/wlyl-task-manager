@@ -77,6 +77,122 @@ h1 {
 }
 #adminSidebar .tab.active { background: var(--accent-bg); color: var(--accent); }
 
+/* ===========================================================
+   Landing page — scoped tokens (WLYL brand teal/amber), kept
+   separate from the app-wide --accent used post-login.
+   =========================================================== */
+#landingPanel {
+  --lp-teal: #1F8A70;
+  --lp-teal-deep: #124F41;
+  --lp-amber: #E8A33D;
+  --lp-ink: #17242B;
+  --lp-paper: #FBF9F4;
+  --lp-line: #E4DFD2;
+  --lp-muted: #6B7570;
+
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  min-height: 560px;
+  background: var(--lp-paper);
+  border: 1px solid var(--lp-line);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(18,79,65,0.08);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.landing-manifesto {
+  position: relative;
+  padding: 56px 48px;
+  color: var(--lp-paper);
+  background:
+    radial-gradient(520px 320px at 85% 0%, rgba(232,163,61,0.35), transparent 60%),
+    linear-gradient(155deg, var(--lp-teal-deep) 0%, var(--lp-ink) 78%);
+  display: flex; flex-direction: column; justify-content: center;
+}
+.landing-eyebrow {
+  font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--lp-amber); margin-bottom: 18px;
+}
+.landing-headline {
+  font-family: 'Fraunces', Georgia, serif; font-weight: 600;
+  font-size: clamp(30px, 3.4vw, 42px); line-height: 1.12;
+  letter-spacing: -0.01em; margin: 0 0 18px; color: #fff;
+}
+.landing-sub {
+  font-size: 14.5px; line-height: 1.7; color: rgba(251,249,244,0.72);
+  max-width: 34ch; margin: 0 0 44px;
+}
+
+.landing-quotes { display: flex; flex-direction: column; gap: 22px; }
+.landing-quote {
+  margin: 0; padding-left: 18px;
+  border-left: 2px solid rgba(232,163,61,0.55);
+}
+.landing-quote p {
+  font-family: 'Fraunces', Georgia, serif; font-style: italic; font-weight: 500;
+  font-size: 15.5px; line-height: 1.6; color: rgba(251,249,244,0.92); margin: 0;
+  max-width: 42ch;
+}
+.landing-quote-lead { border-left-color: var(--lp-amber); }
+.landing-quote-lead p { font-size: 19px; line-height: 1.5; color: #fff; max-width: 40ch; }
+.landing-quote-pair {
+  display: flex; flex-direction: column; gap: 14px;
+}
+
+.landing-access {
+  display: flex; align-items: center; justify-content: center;
+  padding: 48px 40px; background: var(--lp-paper);
+}
+.landing-access-card { width: 100%; max-width: 360px; }
+.landing-access-title {
+  font-family: 'Fraunces', Georgia, serif; font-weight: 600;
+  font-size: 22px; color: var(--lp-ink); margin-bottom: 4px;
+}
+.landing-access-hint { font-size: 13px; color: var(--lp-muted); margin-bottom: 26px; }
+
+.landing-login-grid { display: flex; flex-direction: column; gap: 12px; text-align: left; }
+.landing-login-box {
+  border: 1px solid var(--lp-line); border-radius: 12px;
+  padding: 0 18px; background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.landing-login-box.open { border-color: var(--lp-teal); box-shadow: 0 0 0 3px rgba(31,138,112,0.1); }
+.landing-login-box-header {
+  display: flex; align-items: center; gap: 12px;
+  cursor: pointer; padding: 15px 0;
+}
+.landing-login-box-icon {
+  flex-shrink: 0; width: 34px; height: 34px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; background: rgba(31,138,112,0.1); color: var(--lp-teal);
+}
+#adminBox .landing-login-box-icon { background: rgba(232,163,61,0.16); color: #b57519; }
+.landing-login-box-title { font-size: 14px; font-weight: 700; color: var(--lp-ink); }
+.landing-login-box-hint { font-size: 12px; color: var(--lp-muted); margin-top: 1px; }
+.landing-login-chevron {
+  margin-left: auto; font-size: 20px; color: var(--lp-muted); flex-shrink: 0;
+  transform: rotate(90deg); transition: transform 0.15s;
+}
+.landing-login-chevron.open { transform: rotate(-90deg); color: var(--lp-teal); }
+.landing-login-fields { padding-bottom: 18px; }
+.landing-login-fields .meta-field label { color: var(--lp-muted); }
+.landing-login-fields input {
+  border-color: var(--lp-line);
+}
+.landing-login-fields input:focus {
+  border-color: var(--lp-teal); box-shadow: 0 0 0 3px rgba(31,138,112,0.12);
+}
+.landing-login-fields .btn-primary {
+  background: linear-gradient(135deg, var(--lp-teal), var(--lp-teal-deep));
+  border-color: var(--lp-teal); box-shadow: 0 2px 8px rgba(31,138,112,0.28);
+}
+.landing-setup-link {
+  margin-top: 20px; font-size: 12.5px; color: var(--lp-muted); text-align: center;
+}
+.landing-setup-link a { color: var(--lp-teal); font-weight: 600; }
+
 .sheet {
   background: #fff;
   border: 1px solid var(--line);
@@ -189,7 +305,11 @@ tr:hover { background: #fafafa; }
   .brand-logo { height: 30px; }
   h1 { font-size: 19px; }
   #authCorner { top: 10px; right: 10px; }
-  #landingPanel { padding: 36px 18px; }
+  #landingPanel { grid-template-columns: 1fr; min-height: 0; border-radius: 14px; }
+  .landing-manifesto { padding: 36px 24px; }
+  .landing-headline { font-size: 27px; }
+  .landing-sub { margin-bottom: 32px; }
+  .landing-access { padding: 32px 22px 36px; }
   #appLayout { flex-direction: column; gap: 14px; }
   #adminSidebar { width: 100%; flex-direction: row; flex-wrap: wrap; }
   #adminSidebar .tab { flex: 1 1 auto; text-align: center; }

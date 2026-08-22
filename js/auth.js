@@ -39,6 +39,18 @@ async function logout() {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('panel-submit').style.display = 'none';
   document.getElementById('landingPanel').style.display = '';
+  document.getElementById('memberBoxUsername').value = '';
+  document.getElementById('memberBoxPassword').value = '';
+  document.getElementById('memberBoxStatus').textContent = '';
+  document.getElementById('adminBoxUsername').value = '';
+  document.getElementById('adminBoxPassword').value = '';
+  document.getElementById('adminBoxStatus').textContent = '';
+  document.getElementById('memberBoxFields').style.display = 'none';
+  document.getElementById('adminBoxFields').style.display = 'none';
+  document.getElementById('memberBox').classList.remove('open');
+  document.getElementById('adminBox').classList.remove('open');
+  document.getElementById('memberBoxChevron').classList.remove('open');
+  document.getElementById('adminBoxChevron').classList.remove('open');
 }
 
 // ---------- First-time setup ----------
@@ -143,11 +155,32 @@ async function removeAdmin(username) {
   }
 }
 
+// ---------- Landing page login boxes ----------
+function toggleLandingBox(role) {
+  const other = role === 'member' ? 'admin' : 'member';
+  const fields = document.getElementById(role + 'BoxFields');
+  const otherFields = document.getElementById(other + 'BoxFields');
+  const isOpen = fields.style.display !== 'none';
+
+  otherFields.style.display = 'none';
+  document.getElementById(other + 'BoxChevron').classList.remove('open');
+  document.getElementById(other + 'Box').classList.remove('open');
+
+  fields.style.display = isOpen ? 'none' : 'block';
+  document.getElementById(role + 'BoxChevron').classList.toggle('open', !isOpen);
+  document.getElementById(role + 'Box').classList.toggle('open', !isOpen);
+
+  if (!isOpen) {
+    setTimeout(() => document.getElementById(role + 'BoxUsername').focus(), 0);
+  }
+}
+
 // ---------- Login / identity ----------
-async function loginAs() {
-  const name = document.getElementById('whoAmI').value.trim().toLowerCase();
-  const pw = document.getElementById('whoAmIPassword').value;
-  const statusEl = document.getElementById('loginStatus');
+// Shared core used by both the modal login form and the two landing-page
+// Member/Admin boxes. requireAdmin restricts sign-in to admin accounts
+// (used by the Admin box so a member account can't slip in through it).
+async function attemptLogin(name, pw, requireAdmin, statusEl) {
+  name = name.trim().toLowerCase();
   if (!name) {
     statusEl.textContent = 'Enter your username to continue.';
     return;
@@ -157,7 +190,7 @@ async function loginAs() {
     password: pw
   });
   if (error) {
-    statusEl.textContent = loginMode === 'admin' ? 'Incorrect admin username or password.' : 'Incorrect username or password.';
+    statusEl.textContent = requireAdmin ? 'Incorrect admin username or password.' : 'Incorrect username or password.';
     return;
   }
   const { data: profile } = await sb.from('profiles').select('username, is_admin').eq('id', data.user.id).single();
@@ -166,12 +199,25 @@ async function loginAs() {
     await sb.auth.signOut();
     return;
   }
-  if (loginMode === 'admin' && !profile.is_admin) {
+  if (requireAdmin && !profile.is_admin) {
     statusEl.textContent = 'That account is not an admin.';
     await sb.auth.signOut();
     return;
   }
   await onAuthenticated();
+}
+
+async function loginAs() {
+  const name = document.getElementById('whoAmI').value;
+  const pw = document.getElementById('whoAmIPassword').value;
+  await attemptLogin(name, pw, loginMode === 'admin', document.getElementById('loginStatus'));
+}
+
+async function loginFromLanding(role) {
+  const name = document.getElementById(role + 'BoxUsername').value;
+  const pw = document.getElementById(role + 'BoxPassword').value;
+  const statusEl = document.getElementById(role + 'BoxStatus');
+  await attemptLogin(name, pw, role === 'admin', statusEl);
 }
 
 // Called after any successful sign-in (login form, first-time setup, or
