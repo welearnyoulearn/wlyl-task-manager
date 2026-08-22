@@ -12,19 +12,36 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+};
+
+function jsonResponse(body: unknown, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
+  });
+}
+
 function toSyntheticEmail(username: string): string {
   return `${username.toLowerCase()}@wlyl.local`;
 }
 
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
+  }
+
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+    return jsonResponse({ error: 'Method not allowed' }, 405);
   }
 
   const authHeader = req.headers.get('Authorization') || '';
   const callerToken = authHeader.replace('Bearer ', '');
   if (!callerToken) {
-    return new Response(JSON.stringify({ error: 'Missing auth token' }), { status: 401 });
+    return jsonResponse({ error: 'Missing auth token' }, 401);
   }
 
   const asCaller = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
@@ -32,7 +49,7 @@ Deno.serve(async (req) => {
   });
   const { data: callerUser, error: callerErr } = await asCaller.auth.getUser(callerToken);
   if (callerErr || !callerUser?.user) {
-    return new Response(JSON.stringify({ error: 'Invalid session' }), { status: 401 });
+    return jsonResponse({ error: 'Invalid session' }, 401);
   }
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -44,20 +61,20 @@ Deno.serve(async (req) => {
     .single();
 
   if (!callerProfile?.is_admin) {
-    return new Response(JSON.stringify({ error: 'Admin access required' }), { status: 403 });
+    return jsonResponse({ error: 'Admin access required' }, 403);
   }
 
   const body = await req.json();
   const { action, username, password, isAdmin } = body;
 
   if (!username && action !== 'list') {
-    return new Response(JSON.stringify({ error: 'username is required' }), { status: 400 });
+    return jsonResponse({ error: 'username is required' }, 400);
   }
 
   try {
     if (action === 'create') {
       if (!password) {
-        return new Response(JSON.stringify({ error: 'password is required' }), { status: 400 });
+        return jsonResponse({ error: 'password is required' }, 400);
       }
       const email = toSyntheticEmail(username);
       const { data: created, error: createErr } = await admin.auth.admin.createUser({
@@ -72,7 +89,7 @@ Deno.serve(async (req) => {
       });
       if (profileErr) throw profileErr;
 
-      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      return jsonResponse({ ok: true }, 200);
     }
 
     if (action === 'promote') {
@@ -82,7 +99,7 @@ Deno.serve(async (req) => {
         .eq('username', username.toLowerCase())
         .single();
       if (!profile) {
-        return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 });
+        return jsonResponse({ error: 'User not found' }, 404);
       }
       const { error: updateErr } = await admin
         .from('profiles')
@@ -95,7 +112,7 @@ Deno.serve(async (req) => {
         if (pwErr) throw pwErr;
       }
 
-      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      return jsonResponse({ ok: true }, 200);
     }
 
     if (action === 'remove') {
@@ -105,17 +122,17 @@ Deno.serve(async (req) => {
         .eq('username', username.toLowerCase())
         .single();
       if (!profile) {
-        return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 });
+        return jsonResponse({ error: 'User not found' }, 404);
       }
       const { error: deleteErr } = await admin.auth.admin.deleteUser(profile.id);
       if (deleteErr) throw deleteErr;
       // profiles row cascades via FK on auth.users delete
 
-      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      return jsonResponse({ ok: true }, 200);
     }
 
-    return new Response(JSON.stringify({ error: 'Unknown action' }), { status: 400 });
+    return jsonResponse({ error: 'Unknown action' }, 400);
   } catch (e) {
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), { status: 500 });
+    return jsonResponse({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
 });
