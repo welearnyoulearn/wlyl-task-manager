@@ -73,6 +73,8 @@ async function loadAllEntries() {
   try {
     const { data, error } = await sb.from('weekly_updates').select('*').order('week_of', { ascending: false });
     if (error) throw error;
+    const { data: comments, error: cErr } = await sb.from('weekly_update_comments').select('*').order('created_at', { ascending: true });
+    if (cErr) throw cErr;
     allEntries = (data || []).map(e => ({
       key: e.id,
       name: e.name,
@@ -90,7 +92,10 @@ async function loadAllEntries() {
       learned: e.learned,
       blocked: e.blocked,
       nextWeek: e.next_week,
-      submittedAt: e.submitted_at
+      submittedAt: e.submitted_at,
+      comments: (comments || []).filter(c => c.weekly_update_id === e.id).map(c => ({
+        author: c.author, text: c.text, at: c.created_at
+      }))
     }));
     return allEntries;
   } catch (e) {
@@ -158,6 +163,12 @@ function renderHistory() {
 }
 
 function entryCardHtml(e) {
+  const commentsHtml = (e.comments || []).map(c => `
+    <div style="border-top:1px solid var(--line); padding:8px 0; font-size:13px;">
+      <div style="color:var(--muted); font-size:11px; margin-bottom:2px;">${escapeHtml(c.author)} &middot; ${new Date(c.at).toLocaleString()}</div>
+      <div>${escapeHtml(c.text)}</div>
+    </div>
+  `).join('');
   return `
     <div class="entry-card">
       <div class="entry-head">
@@ -169,6 +180,11 @@ function entryCardHtml(e) {
       ${blockHtml('Learned / discovered', e.learned)}
       ${e.blocked && e.blocked.trim() ? `<div class="entry-block blocked"><div class="label">Blocked on</div><pre>${escapeHtml(e.blocked)}</pre></div>` : ''}
       ${blockHtml('Next week', e.nextWeek)}
+      <div>${commentsHtml}</div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <input type="text" id="updateComment_${e.key}" placeholder="Add a comment/reply..." style="flex:1; padding:7px 10px; border:1px solid var(--line); border-radius:6px; font-size:13px;">
+        <button class="btn-secondary" style="padding:7px 14px;" onclick="addUpdateComment('${e.key}')">Post</button>
+      </div>
     </div>
   `;
 }
@@ -177,6 +193,25 @@ function blockHtml(label, val, ticketId) {
   if (!val || !val.trim()) return '';
   const ticketTag = ticketId ? ` <span class="ticket-link" style="font-size:11px;" onclick="openTicketDetail('${escapeHtml(ticketId)}')">[${escapeHtml(ticketId)}]</span>` : '';
   return `<div class="entry-block"><div class="label">${label}${ticketTag}</div><pre>${escapeHtml(val)}</pre></div>`;
+}
+
+async function addUpdateComment(weeklyUpdateId) {
+  const input = document.getElementById('updateComment_' + weeklyUpdateId);
+  const text = input.value.trim();
+  if (!text) return;
+  try {
+    const { error } = await sb.from('weekly_update_comments').insert({
+      weekly_update_id: weeklyUpdateId, author: currentUser, text
+    });
+    if (error) throw error;
+    await loadAllEntries();
+    if (document.getElementById('panel-mine').classList.contains('active')) renderMineHistory();
+    if (document.getElementById('panel-history').classList.contains('active')) renderHistory();
+    if (document.getElementById('panel-byperson').classList.contains('active')) renderPersonHistory();
+    if (document.getElementById('panel-ticketdetail').classList.contains('active')) renderTicketDetail(currentTicketDetailId);
+  } catch (e) {
+    alert('Could not post comment: ' + e.message);
+  }
 }
 
 async function deleteEntry(key) {

@@ -1,9 +1,11 @@
 // ---------- Ticket Detail (opened by clicking any ticket id) ----------
 let ticketDetailReturnTab = null;
+let currentTicketDetailId = null;
 
 function openTicketDetail(ticketId) {
   const activeTab = document.querySelector('.tab.active');
   ticketDetailReturnTab = activeTab || null;
+  currentTicketDetailId = ticketId;
 
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));

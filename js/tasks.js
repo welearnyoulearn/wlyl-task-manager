@@ -87,7 +87,7 @@ function renderMyTasks() {
 
 function taskCardHtml(t, showAssignee) {
   const statusColors = {
-    'Assigned': '#a86a2f', 'Not Started': '#6b6b6b', 'In Progress': '#2f5d8a', 'Blocked': '#a83232', 'Done': '#2f8a4e'
+    'Assigned': '#b57519', 'Not Started': '#6b6b6b', 'In Progress': '#1F8A70', 'Blocked': '#a83232', 'Done': '#124F41'
   };
   const commentsHtml = (t.comments || []).map(c => `
     <div style="border-top:1px solid var(--line); padding:8px 0; font-size:13px;">
@@ -193,6 +193,7 @@ async function addTaskComment(key) {
     await loadAllTasks();
     if (document.getElementById('panel-mytasks').classList.contains('active')) renderMyTasks();
     if (document.getElementById('panel-tasksboard').classList.contains('active')) renderTasksBoard();
+    if (document.getElementById('panel-ticketdetail').classList.contains('active')) renderTicketDetail(currentTicketDetailId);
   } catch (e) {
     alert('Could not post comment: ' + e.message);
   }
