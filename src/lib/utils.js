@@ -1,5 +1,5 @@
-﻿// ---------- ISO week number ----------
-function getISOWeek(dateStr) {
+// ---------- ISO week number ----------
+export function getISOWeek(dateStr) {
   if (!dateStr) return null;
   const d = new Date(dateStr + 'T00:00:00');
   const target = new Date(d.valueOf());
@@ -12,22 +12,10 @@ function getISOWeek(dateStr) {
   return { week: weekNum, year: target.getFullYear() };
 }
 
-function formatWeekLabel(dateStr) {
+export function formatWeekLabel(dateStr) {
   const info = getISOWeek(dateStr);
   if (!info) return '';
   return `Week ${info.week}, ${info.year}`;
-}
-
-function updateWeekLabel() {
-  const dateStr = document.getElementById('weekOf').value;
-  document.getElementById('weekLabel').textContent = dateStr ? formatWeekLabel(dateStr) : '';
-}
-
-
-function escapeHtml(str) {
-  const d = document.createElement('div');
-  d.textContent = str;
-  return d.innerHTML;
 }
 
 // ---------- Synthetic email for Supabase Auth ----------
@@ -35,7 +23,7 @@ function escapeHtml(str) {
 // when talking to sb.auth so real emails never need to be collected.
 // Usernames can contain spaces/punctuation that aren't valid in an email
 // local-part, so strip everything except letters/digits/dot/dash/underscore.
-function toSyntheticEmail(username) {
+export function toSyntheticEmail(username) {
   const local = username.toLowerCase().trim().replace(/[^a-z0-9._-]/g, '');
   return `${local}@wlyl.local`;
 }

@@ -3,3 +3,13 @@ node_modules/
 *.log
 index.html.bak
 supabase/.temp/
+
+# Vite build output
+dist/
+
+# Playwright / test env
+.env.test
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
