@@ -9,7 +9,7 @@ export function ProfilesProvider({ children }) {
   const loadProfiles = useCallback(async () => {
     let data = [];
     try {
-      const res = await sb.from('profiles').select('id, username, is_admin');
+      const res = await sb.from('profiles').select('id, username, is_admin, member_role');
       if (res.error) throw res.error;
       data = res.data || [];
     } catch (e) {

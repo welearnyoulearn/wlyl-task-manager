@@ -10,11 +10,34 @@ export const TEST_ADMIN = {
   password: process.env.E2E_ADMIN_PASSWORD || ''
 };
 
+// Dedicated single-role accounts for Phase 4's member_role negative-path
+// tests (tests/e2e/member-roles.spec.js). TEST_MEMBER/TEST_ADMIN both
+// have member_role='both' by default, which passes every role gate, so
+// they can't exercise the "wrong role" rejection path themselves.
+export const TEST_TESTER = {
+  username: process.env.E2E_TESTER_USERNAME || '',
+  password: process.env.E2E_TESTER_PASSWORD || ''
+};
+
+export const TEST_DEVELOPER = {
+  username: process.env.E2E_DEVELOPER_USERNAME || '',
+  password: process.env.E2E_DEVELOPER_PASSWORD || ''
+};
+
 export function requireTestAccounts() {
   if (!TEST_MEMBER.username || !TEST_MEMBER.password || !TEST_ADMIN.username || !TEST_ADMIN.password) {
     throw new Error(
       'Missing E2E test credentials. Copy .env.test.example to .env.test and fill in ' +
       'E2E_MEMBER_USERNAME/PASSWORD and E2E_ADMIN_USERNAME/PASSWORD for dedicated test accounts. See tests/README.md.'
+    );
+  }
+}
+
+export function requireRoleTestAccounts() {
+  if (!TEST_TESTER.username || !TEST_TESTER.password || !TEST_DEVELOPER.username || !TEST_DEVELOPER.password) {
+    throw new Error(
+      'Missing role-specific E2E test credentials. Add E2E_TESTER_USERNAME/PASSWORD (member_role=tester) ' +
+      'and E2E_DEVELOPER_USERNAME/PASSWORD (member_role=developer) to .env.test. See tests/README.md.'
     );
   }
 }

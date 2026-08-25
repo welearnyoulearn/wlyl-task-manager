@@ -6,6 +6,7 @@ import BugReportCard from './BugReportCard.jsx';
 import { useTicketDetail } from '../context/TicketDetailContext.jsx';
 import { useData } from '../context/DataContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useProfiles } from '../context/ProfilesContext.jsx';
 import { sb } from '../lib/supabase.js';
 
 const STATUS_COLORS = {
@@ -25,17 +26,39 @@ const QA_BADGE_CLASS = {
 export default function TaskCard({ task, showAssignee, onChanged }) {
   const { openTicketDetail } = useTicketDetail();
   const { loadAllTasks } = useData();
-  const { currentUser } = useAuth();
+  const { currentUser, currentUserId, isAdmin, currentMemberRole } = useAuth();
+  const { profiles } = useProfiles();
 
   const [showBugForm, setShowBugForm] = useState(false); // 'fail' | 'standalone' | false
   const [showEvidenceForm, setShowEvidenceForm] = useState(false);
+  const [showAssignQa, setShowAssignQa] = useState(false);
 
   const needsAccept = task.status === 'Assigned';
   const qaStatus = task.qaStatus || 'Not Ready';
 
-  const canMarkReadyForQa = task.status === 'Done' && (qaStatus === 'Not Ready' || qaStatus === 'Failed');
-  const canStartQa = qaStatus === 'Ready for QA';
-  const canResolveQa = qaStatus === 'In QA';
+  // Role gating: admins can always act, regardless of member_role.
+  // A member with no role set yet (null, before Phase 4's migration
+  // backfill reaches them, or a role explicitly cleared) is treated as
+  // unqualified for either side rather than defaulting to "both" here -
+  // the migration's own default already makes 'both' the normal case,
+  // so a genuinely null role is either an admin (fine, isAdmin covers
+  // it) or a state that should be visibly "no access" rather than
+  // silently permissive.
+  const canDoDevActions = isAdmin || currentMemberRole === 'developer' || currentMemberRole === 'both';
+  const canDoQaActions = isAdmin || currentMemberRole === 'tester' || currentMemberRole === 'both';
+
+  // qa_assignee, when set, routes Start QA to that specific person (or
+  // an admin) instead of any qualified tester - see README "QA
+  // assignment". Unset (the default, and every ticket's state before
+  // this feature) preserves the original self-pick behavior exactly.
+  const isQaAssignee = task.qaAssignee && task.qaAssignee === currentUserId;
+  const canDoQaActionsForThisTicket = canDoQaActions && (!task.qaAssignee || isQaAssignee || isAdmin);
+
+  const canMarkReadyForQa = canDoDevActions && task.status === 'Done' && (qaStatus === 'Not Ready' || qaStatus === 'Failed');
+  const canStartQa = canDoQaActionsForThisTicket && qaStatus === 'Ready for QA';
+  const canResolveQa = canDoQaActionsForThisTicket && qaStatus === 'In QA';
+
+  const qualifiedTesters = profiles.filter(p => !p.is_admin && (p.member_role === 'tester' || p.member_role === 'both'));
 
   const refresh = async () => {
     await loadAllTasks();
@@ -108,6 +131,17 @@ export default function TaskCard({ task, showAssignee, onChanged }) {
     }
   };
 
+  const assignQa = async (profileId) => {
+    try {
+      const { error } = await sb.from('tasks').update({ qa_assignee: profileId || null }).eq('id', task.key);
+      if (error) throw error;
+      setShowAssignQa(false);
+      await refresh();
+    } catch (e) {
+      alert('Could not assign QA: ' + e.message);
+    }
+  };
+
   const passQa = async () => {
     try {
       const updates = { qa_status: 'Passed' };
@@ -131,6 +165,9 @@ export default function TaskCard({ task, showAssignee, onChanged }) {
           &nbsp;{task.title} {showAssignee && (
             <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: 12 }}> &rarr; {task.assignee}</span>
           )}
+          {task.qaAssigneeUsername && (
+            <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: 12 }}> &middot; QA: {task.qaAssigneeUsername}</span>
+          )}
         </span>
         <span className="entry-week">{task.dueDate ? 'Due ' + task.dueDate : ''}</span>
       </div>
@@ -147,7 +184,7 @@ export default function TaskCard({ task, showAssignee, onChanged }) {
         </span>
         <span className={`qa-badge ${QA_BADGE_CLASS[qaStatus] || ''}`}>QA: {qaStatus}</span>
         <span style={{ fontSize: 12, color: 'var(--muted)' }}>Priority: {task.priority || 'Normal'}</span>
-        {needsAccept ? (
+        {!canDoDevActions ? null : needsAccept ? (
           <button className="btn-primary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={acceptTask}>Accept Task</button>
         ) : (
           <select
@@ -166,6 +203,24 @@ export default function TaskCard({ task, showAssignee, onChanged }) {
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '10px 0', flexWrap: 'wrap' }}>
         {canMarkReadyForQa && (
           <button className="btn-secondary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={markReadyForQa}>Mark Ready for QA</button>
+        )}
+        {isAdmin && qaStatus === 'Ready for QA' && !showAssignQa && (
+          <button className="btn-secondary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => setShowAssignQa(true)}>
+            {task.qaAssignee ? 'Reassign QA' : 'Assign QA'}
+          </button>
+        )}
+        {showAssignQa && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <select
+              defaultValue={task.qaAssignee || ''}
+              onChange={(e) => assignQa(e.target.value)}
+              style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--line)', borderRadius: 6 }}
+            >
+              <option value="">— any qualified tester —</option>
+              {qualifiedTesters.map(p => <option key={p.id} value={p.id}>{p.username}</option>)}
+            </select>
+            <button className="btn-secondary" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setShowAssignQa(false)}>Cancel</button>
+          </span>
         )}
         {canStartQa && (
           <button className="btn-secondary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={startQa}>Start QA</button>

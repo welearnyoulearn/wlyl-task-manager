@@ -18,6 +18,27 @@ export function formatWeekLabel(dateStr) {
   return `Week ${info.week}, ${info.year}`;
 }
 
+// ---------- Relative time ----------
+// "Last updated: 3 hours ago" style formatting for tasks.updated_at.
+// Deliberately coarse (minutes/hours/days/weeks, no seconds) since this
+// is a glance-at-a-ticket UI, not a live-updating one.
+export function formatRelativeTime(isoString) {
+  if (!isoString) return '';
+  const then = new Date(isoString).getTime();
+  if (Number.isNaN(then)) return '';
+  const diffMs = Date.now() - then;
+  const diffMin = Math.round(diffMs / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? '' : 's'} ago`;
+  const diffDay = Math.round(diffHr / 24);
+  if (diffDay < 7) return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`;
+  const diffWeek = Math.round(diffDay / 7);
+  if (diffWeek < 5) return `${diffWeek} week${diffWeek === 1 ? '' : 's'} ago`;
+  return new Date(isoString).toLocaleDateString();
+}
+
 // ---------- Synthetic email for Supabase Auth ----------
 // Login/admin UX stays username-based; this is only used internally
 // when talking to sb.auth so real emails never need to be collected.

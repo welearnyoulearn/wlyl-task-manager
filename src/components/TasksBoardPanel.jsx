@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useData } from '../context/DataContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import TaskCard from './TaskCard.jsx';
 
 const STATUS_FILTER_OPTIONS = [
@@ -20,14 +21,30 @@ const QA_STATUS_FILTER_OPTIONS = [
   { value: 'Failed', label: 'Failed' }
 ];
 
+const SORT_OPTIONS = [
+  { value: 'created', label: 'Newest first' },
+  { value: 'updated', label: 'Last updated' }
+];
+
 export default function TasksBoardPanel({ active }) {
   const { allTasks, loadAllTasks } = useData();
+  const { loadProfiles } = useAuth();
   const [personFilter, setPersonFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [qaStatusFilter, setQaStatusFilter] = useState('');
+  const [sortBy, setSortBy] = useState('created');
 
   useEffect(() => {
-    if (active) loadAllTasks();
+    if (active) {
+      loadAllTasks();
+      // TaskCard's "Assign QA" picker needs profiles (with member_role)
+      // loaded to list qualified testers - previously only loaded by
+      // AssignTaskPanel/ManageMembersPanel/ManageAdminsPanel, so an
+      // admin landing directly on Tasks Board without visiting one of
+      // those first would see an empty picker. Found via
+      // qa-assignment.spec.js actually exercising a fresh admin session.
+      loadProfiles();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
@@ -38,8 +55,13 @@ export default function TasksBoardPanel({ active }) {
     if (personFilter) f = f.filter(t => t.assignee === personFilter);
     if (statusFilter) f = f.filter(t => t.status === statusFilter);
     if (qaStatusFilter) f = f.filter(t => (t.qaStatus || 'Not Ready') === qaStatusFilter);
+    if (sortBy === 'updated') {
+      f = [...f].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    }
+    // 'created' needs no explicit sort: allTasks already arrives ordered
+    // by created_at desc from loadAllTasks, and filtering preserves order.
     return f;
-  }, [allTasks, personFilter, statusFilter, qaStatusFilter]);
+  }, [allTasks, personFilter, statusFilter, qaStatusFilter, sortBy]);
 
   const counts = useMemo(() => ({
     total: filtered.length,
@@ -93,6 +115,12 @@ export default function TasksBoardPanel({ active }) {
           <label>QA Status</label>
           <select value={qaStatusFilter} onChange={(e) => setQaStatusFilter(e.target.value)}>
             {QA_STATUS_FILTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+        <div className="filter-field">
+          <label>Sort by</label>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+            {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
         <div className="filter-field">

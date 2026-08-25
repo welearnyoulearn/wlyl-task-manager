@@ -1,14 +1,22 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext.jsx';
 import { useTicketDetail } from '../context/TicketDetailContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { formatRelativeTime } from '../lib/utils.js';
 import TaskCard from './TaskCard.jsx';
 import EntryCard from './EntryCard.jsx';
 
 export default function TicketDetailPanel({ active }) {
   const { allEntries, allTasks } = useData();
   const { ticketDetailId, closeTicketDetail } = useTicketDetail();
-  const { isAdmin } = useAuth();
+  const { isAdmin, loadProfiles } = useAuth();
+
+  // Same reasoning as TasksBoardPanel: TaskCard's "Assign QA" picker
+  // (admin-only) needs profiles loaded with member_role.
+  useEffect(() => {
+    if (active && isAdmin) loadProfiles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, isAdmin]);
 
   const task = useMemo(() => allTasks.find(t => t.ticketId === ticketDetailId), [allTasks, ticketDetailId]);
   const mentions = useMemo(() => {
@@ -28,6 +36,11 @@ export default function TicketDetailPanel({ active }) {
           <div className="empty">Ticket not found.</div>
         ) : (
           <>
+            {task.updatedAt && (
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
+                Last updated: {formatRelativeTime(task.updatedAt)}
+              </div>
+            )}
             {/* showAssignee also controls the delete-ticket button (admin-only
                 action) - gated to isAdmin here since Ticket Detail is reachable
                 by any user, unlike Tasks Board which is admin-sidebar-only. */}

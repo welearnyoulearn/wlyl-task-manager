@@ -341,3 +341,146 @@ permissive policy — it's genuinely unused by any current code path (see
 note 5 above), so tightening it wasn't in scope for tables the app
 actually reads/writes. Phase 3 Step 3 (dropping the legacy `admins`/
 `members` tables) has not started yet.
+
+---
+
+# Phase 4 — Member sub-roles, last-updated tracking, admin-driven QA assignment
+
+## 19. RLS can't scope an UPDATE to specific columns — a real gap, closed with a trigger, not just documented
+
+`tasks` has two separate PERMISSIVE UPDATE policies (`tasks_update_dev_fields`,
+`tasks_update_qa`), OR'd together by Postgres per note #16. Once
+`008_member_roles.sql` tightened each to require a qualifying
+`member_role`, live testing found this was a **real, exploitable gap,
+not theoretical**: a `tester`-role assignee's direct-API write to
+`status`/`accepted_at` went through, because the write still satisfied
+`tasks_update_qa`'s broad "any qualified tester" row-level check even
+though `tasks_update_dev_fields` alone would have rejected it — and the
+same happened in reverse for a `developer`-role assignee writing
+`qa_status`. Root-caused by querying `pg_policies` directly and by
+writing negative-path tests that actually attempted these writes
+(`member-roles.spec.js`), not by reasoning about the policy SQL alone.
+
+Given the choice between "leave it as a documented caveat" (Phase 3's
+resolution for a similar RLS limitation, note #16) and "add a trigger,"
+the user chose the trigger this time, since it's the only way to
+actually close a column-scoping gap in Postgres RLS. `010_qa_assignee.sql`
+PART 3 adds `enforce_tasks_column_role_gate()`, a `BEFORE UPDATE` trigger
+that inspects `OLD` vs `NEW` per field and rejects (via `raise exception`)
+any write a caller's role doesn't qualify for — dev fields
+(`status`/`accepted_at`) require assignee + `developer`/`both`; QA fields
+(`qa_status`) require `tester`/`both`, except **Mark Ready for QA**
+(`qa_status` moving `Not Ready`/`Failed` → `Ready for QA`), which is
+itself a dev action per `TaskCard.jsx`'s `canMarkReadyForQa` and requires
+the dev role instead; `qa_assignee` writes are admin-only, period. Admins
+bypass the whole trigger.
+
+**The first version of this trigger had a real bug**, caught by
+`member-roles.spec.js`'s developer-role test actually exercising the
+legitimate "Mark Ready for QA" step (not the negative-path check) and
+failing on it: it required a tester role for *every* `qa_status`
+transition, not accounting for Mark Ready for QA being a dev action that
+happens to write `qa_status`. Fixed by special-casing that one
+transition. Lesson: a trigger like this needs to be verified against the
+*legitimate* paths through the state machine, not just the negative
+paths it's meant to block — testing only the rejection case would have
+shipped a trigger that also broke a real feature.
+
+Also closes a second, smaller gap the same way: `tasks_update_qa`'s
+RLS policy alone couldn't stop a qualified tester from setting
+`qa_assignee` directly (RLS can't tell "this write only touches
+`qa_assignee`" from any other `tasks_update_qa`-satisfying write) even
+though "Assign QA" is admin-only in the UI. The trigger's explicit
+`qa_assignee`-is-admin-only check closes this too — see the corrected
+comment in `010_qa_assignee.sql` PART 2 (the original comment there
+called this an accepted, open caveat; it no longer is).
+
+**PostgREST response-shape gotcha, worth remembering for future
+negative-path tests:** when RLS's `USING` clause silently excludes a row
+from an UPDATE (rather than a trigger raising an exception), PostgREST
+doesn't reliably return `204 No Content` — it can return `200` with an
+empty JSON array body instead, depending on the `Prefer` header. A test
+asserting `expect(writeRes.ok()).toBe(false)` is **wrong** in that case,
+since a 200 response is `ok()`. The correct check: if `writeRes.ok()`,
+assert the response body is an empty array; otherwise assert a non-2xx
+status (the trigger-exception path). All three of this phase's
+negative-path tests (`member-roles.spec.js` x2, `qa-assignment.spec.js`
+x1) were initially wrong this way and had to be fixed.
+
+## 20. Admin-driven QA assignment surfaced two real application bugs, not just RLS gaps
+
+`tasks.qa_assignee` (nullable FK to `profiles`) lets an admin route a
+ticket to one specific qualified tester via **Assign QA** on Tasks
+Board; `Start QA` becomes gated to that person (or an admin) at both the
+UI and RLS/trigger layers when set, and self-pick behavior is preserved
+exactly when it's left null (default). Building the negative-path tests
+for this (`qa-assignment.spec.js`) found two bugs in the feature itself,
+not just gaps in enforcement:
+
+- **`MyTasksPanel` never showed `qa_assignee`-routed tickets at all** —
+  it filtered strictly by `t.assignee` (dev assignee), so a ticket
+  routed to someone who *wasn't* the dev assignee was invisible in every
+  page of the app to the very person it was routed to. This made the
+  entire admin-QA-routing feature non-functional end-to-end for the
+  non-assignee case — not a pre-existing gap, a bug in this phase's own
+  feature. Fixed in `MyTasksPanel.jsx`: the filter now also matches
+  `currentUserId === t.qaAssignee`. Deliberately did **not** flip
+  `showAssignee` to true for these cards, since that prop also gates the
+  admin-only delete button in `TaskCard` — kept `showAssignee={false}`
+  unconditionally on My Tasks to avoid an unrelated permission
+  regression; the `QA: <username>` label is enough to signal "this
+  ticket involves someone else."
+
+- **The Assign QA picker was sometimes empty** — its tester list comes
+  from `useProfiles()`, which nothing had triggered a load for on a
+  fresh admin session landing directly on Tasks Board or Ticket Detail
+  (previously only Assign Task / Manage Members / Manage Admins
+  triggered `loadProfiles()`). Fixed by adding a `loadProfiles()` call
+  to both panels' active-effects.
+
+**Confirmed, not fixed — a pre-existing app-wide navigation gap that's
+now more load-bearing:** there is no UI path to a ticket for a non-admin
+who is neither its dev assignee nor its `qa_assignee` — My Tasks only
+shows your own; Tasks Board/By Person are admin-only; there's no ticket
+search or URL-based ticket routing anywhere in the app. This predates
+Phase 4, but it means "any qualified tester can self-pick an unrouted
+ticket" was always, in practice, "the ticket's own assignee, if also
+tester-qualified, can self-pick" — a `tester`-only member who isn't the
+dev assignee could never reach the ticket to begin with, `qa_assignee`
+or not. `qa-assignment.spec.js`'s self-pick regression test uses a
+`both`-role assignee for this reason, since that's the only case
+actually reachable through the UI today. Worth considering a "my QA
+queue" or ticket-search view later; not built now.
+
+## 21. `member_role` is null for admins, by design
+
+Admins get every dev/QA action regardless of role, so `member_role`
+being consulted for an admin account would never actually change
+behavior — kept `null` rather than defaulting admins to `'both'`, so it
+doesn't imply a role check happens for them anywhere. `profiles.member_role`
+defaults to `'both'` for everyone else (including all pre-existing
+member rows, via the migration's default), preserving pre-Phase-4
+behavior (any member could do any action) until an admin deliberately
+narrows someone's role.
+
+**Test suite after this phase: 26 tests total, 24 passed, 1 skipped
+(pre-existing conditional in `comments.spec.js` — "no tasks/reports yet,
+run X first" — unrelated to this phase), 1 confirmed-flaky failure**
+(`qa-workflow.spec.js`'s "fails it with a bug report" test hit a stale-
+card timing issue against a My Tasks page loaded with dozens of
+accumulated synthetic tickets from repeated debugging runs across this
+project's test history — passed cleanly on an isolated re-run, and every
+other test sharing the same helper function passed in the full run,
+confirming this wasn't a real regression). Run for real against
+production Supabase, full suite ~2 minutes. Dedicated `tester`/
+`developer` test accounts were added (`E2E_TESTER_*`/`E2E_DEVELOPER_*`
+in `.env.test`) since the existing `TEST_MEMBER` account has
+`member_role = 'both'` and can't exercise either role's negative path on
+its own.
+
+**Deferred, not done in this pass:** no cleanup/teardown was added for
+accumulated synthetic E2E test data (tickets, comments) — matches
+existing project convention (see `tests/README.md`), but the volume is
+now large enough to have caused the one flaky failure above; worth
+reconsidering a teardown or a periodic manual cleanup pass if flakiness
+recurs.

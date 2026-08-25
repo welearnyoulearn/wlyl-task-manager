@@ -48,7 +48,10 @@ export function DataProvider({ children }) {
 
   const loadAllTasks = useCallback(async () => {
     try {
-      const { data: tasks, error: tErr } = await sb.from('tasks').select('*').order('created_at', { ascending: false });
+      const { data: tasks, error: tErr } = await sb
+        .from('tasks')
+        .select('*, qa_assignee_profile:profiles!qa_assignee(username)')
+        .order('created_at', { ascending: false });
       if (tErr) throw tErr;
       const { data: comments, error: cErr } = await sb.from('task_comments').select('*').order('created_at', { ascending: true });
       if (cErr) throw cErr;
@@ -77,6 +80,9 @@ export function DataProvider({ children }) {
         assignedAt: t.assigned_at,
         acceptedAt: t.accepted_at,
         createdAt: t.created_at,
+        updatedAt: t.updated_at,
+        qaAssignee: t.qa_assignee,
+        qaAssigneeUsername: t.qa_assignee_profile?.username || null,
         comments: (comments || []).filter(c => c.task_id === t.id).map(c => ({
           author: c.author, text: c.text, at: c.created_at
         })),
