@@ -52,6 +52,10 @@ export function DataProvider({ children }) {
       if (tErr) throw tErr;
       const { data: comments, error: cErr } = await sb.from('task_comments').select('*').order('created_at', { ascending: true });
       if (cErr) throw cErr;
+      const { data: bugReports, error: bErr } = await sb.from('bug_reports').select('*').order('created_at', { ascending: false });
+      if (bErr) throw bErr;
+      const { data: testEvidence, error: evErr } = await sb.from('test_evidence').select('*').order('created_at', { ascending: false });
+      if (evErr) throw evErr;
       const mapped = (tasks || []).map(t => ({
         key: t.id,
         id: t.id,
@@ -63,11 +67,36 @@ export function DataProvider({ children }) {
         dueDate: t.due_date,
         priority: t.priority,
         status: t.status,
+        qaStatus: t.qa_status,
         assignedAt: t.assigned_at,
         acceptedAt: t.accepted_at,
         createdAt: t.created_at,
         comments: (comments || []).filter(c => c.task_id === t.id).map(c => ({
           author: c.author, text: c.text, at: c.created_at
+        })),
+        bugReports: (bugReports || []).filter(b => b.task_id === t.id).map(b => ({
+          key: b.id,
+          id: b.id,
+          reportedBy: b.reported_by,
+          stepsToReproduce: b.steps_to_reproduce,
+          expectedBehavior: b.expected_behavior,
+          actualBehavior: b.actual_behavior,
+          severity: b.severity,
+          environment: b.environment,
+          evidenceUrl: b.evidence_url,
+          resolved: b.resolved,
+          resolvedAt: b.resolved_at,
+          createdAt: b.created_at
+        })),
+        testEvidence: (testEvidence || []).filter(ev => ev.task_id === t.id).map(ev => ({
+          key: ev.id,
+          id: ev.id,
+          submittedBy: ev.submitted_by,
+          runUrl: ev.run_url,
+          passedCount: ev.passed_count,
+          failedCount: ev.failed_count,
+          notes: ev.notes,
+          createdAt: ev.created_at
         }))
       }));
       setAllTasks(mapped);

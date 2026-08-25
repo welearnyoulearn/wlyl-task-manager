@@ -25,6 +25,35 @@ Every week, each team member writes a short update (what they completed, what's 
 - **My Tasks**: shows tasks assigned to that member. A newly assigned task needs to be **accepted** first (`Accept Task` button) before its status can be changed — this records both when it was assigned and when it was accepted.
 - Once accepted, status moves through `Not Started → In Progress → Blocked → Done` via a dropdown on the ticket card. Anyone (member or admin) can post comments directly on a ticket's card.
 
+### 3a. QA workflow (once a ticket reaches Done)
+
+Every ticket has a second, independent status — `qa_status` — that tracks QA verification separately from dev progress (`status`). It's shown as its own color-coded badge on the ticket card, next to the dev status:
+
+| `qa_status` | Badge color | Meaning |
+|---|---|---|
+| `Not Ready` | grey | Default. Dev work isn't done yet, or hasn't been queued for QA. |
+| `Ready for QA` | amber | Dev marked it ready; waiting for a tester to pick it up. |
+| `In QA` | amber | A tester is actively verifying it. |
+| `Passed` | green | QA verified it works. |
+| `Failed` | red | QA found a problem — see the bug report attached below the ticket. |
+
+The state machine and who can trigger each transition:
+
+- **Mark Ready for QA** (`Not Ready` or `Failed` → `Ready for QA`) — only enabled once dev `status` is `Done`. This is what lets a ticket re-enter the QA queue after a fix, since `Failed` isn't a dead end.
+- **Start QA** (`Ready for QA` → `In QA`) — any member, not just admins (QA in this app is done by regular team members, not a separate admin-only role).
+- **Pass QA** (`In QA` → `Passed`) — also force-advances dev `status` to `Done` if it somehow isn't already, so a passed ticket is never left showing an incomplete dev status.
+- **Fail QA** (`In QA` → `Failed`) — opens the bug report form inline; submitting it both logs the bug and flips `qa_status` to `Failed` in one action. `qa_status` never changes without a bug report attached when failing this way.
+
+Independently of that flow, anyone can also:
+- **Report Bug** — log a bug against a ticket at any time, without going through "Fail QA" (doesn't change `qa_status`).
+- **Attach Test Run** — log a Playwright run's result (a CI/trace URL, pass/fail counts, optional notes) against a ticket, for a record of what automated coverage has actually been run against it.
+
+Each bug report shows steps to reproduce, expected vs. actual behavior, a color-coded severity tag (Blocker/Major/Minor/Cosmetic), optional environment and evidence-link fields, and who reported it. **Mark Resolved** (setting `resolved`/`resolved_at`) is available to the ticket's assignee or any admin. Resolved and open bug reports are grouped separately on the ticket.
+
+All of this — the QA badge, the action buttons, bug reports, and test evidence — appears everywhere a ticket card renders (Tasks Board, My Tasks, By Person, Ticket Detail), since they all share the same `TaskCard` component.
+
+**Tasks Board** also has a QA Status filter alongside the existing Person/Status filters, with its own live counts row per `qa_status`.
+
 ### 4. Member submits a weekly report
 
 - **Submit Update**: one form per person per week — Completed, In Progress, category hours (Dev/Research/Testing/Docs), Learned, Blocked, Next Week.
@@ -78,6 +107,7 @@ task-manager/
       TabBar.jsx, AdminSidebar.jsx                        Navigation
       SubmitUpdateForm.jsx                                 Submit Update
       MyTasksPanel.jsx, TasksBoardPanel.jsx, AssignTaskPanel.jsx, TaskCard.jsx   Tasks/tickets
+      BugReportForm.jsx, BugReportCard.jsx, TestEvidenceForm.jsx                 QA workflow (rendered inside TaskCard)
       MyHistoryPanel.jsx, HistoryPanel.jsx, ByPersonPanel.jsx, EntryCard.jsx      Weekly reports
       TicketDetailPanel.jsx                                Shared ticket detail view
       ManageAdminsPanel.jsx, ManageMembersPanel.jsx, PasswordChangeCell.jsx       Admin user mgmt
@@ -89,6 +119,7 @@ task-manager/
     001_auth_and_ticket_items.sql   profiles table, weekly_update_items, RLS setup
     002_weekly_update_comments.sql   Comments-on-weekly-reports table (safe to run now)
     003_weekly_export_cron.sql        Export cron — DO NOT RUN until the export function exists
+    004_qa_workflow.sql                tasks.qa_status column + bug_reports + test_evidence tables, RLS
     backfill-auth-users.mjs           One-time script: migrates old plaintext accounts to real Supabase Auth
     functions/manage-user/index.ts    Edge Function: admin-only create/promote/remove/set-password
   .github/workflows/ci.yml        PR gate: build + Playwright, required before merge to main
@@ -99,8 +130,10 @@ task-manager/
 - **`profiles`** — one row per user (`id` = Supabase Auth user id, `username`, `is_admin`). Source of truth for identity and role.
 - **`weekly_updates`** — one row per person per week (the report form fields).
 - **`weekly_update_comments`** — admin/member comments on a weekly report.
-- **`tasks`** — tickets, with `ticket_id` auto-generated, `assignee`, `status`, timestamps.
+- **`tasks`** — tickets, with `ticket_id` auto-generated, `assignee`, `status`, `qa_status`, timestamps. `status` (Assigned/Not Started/In Progress/Blocked/Done) tracks dev progress; `qa_status` (Not Ready/Ready for QA/In QA/Passed/Failed) tracks QA verification independently — see "QA workflow" above.
 - **`task_comments`** — comments on a ticket.
+- **`bug_reports`** — zero or more bugs logged against a ticket during QA (steps/expected/actual, severity, environment, evidence link, resolved/resolved_at). `reported_by` is a plain username string, matching `tasks.assignee`/`task_comments.author` — not a UUID FK to `profiles`, to stay consistent with how identity is stored everywhere else in this schema.
+- **`test_evidence`** — Playwright run results attached to a ticket (CI/trace URL, pass/fail counts, optional notes). `submitted_by` is likewise a plain username string.
 - **`admins` / `members`** — legacy plaintext-password tables from before the Supabase Auth migration; superseded by `profiles` but not yet deleted (see Known gaps below).
 
 ## Authentication

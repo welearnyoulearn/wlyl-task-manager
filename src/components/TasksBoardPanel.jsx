@@ -11,10 +11,20 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'Done', label: 'Done' }
 ];
 
+const QA_STATUS_FILTER_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: 'Not Ready', label: 'Not Ready' },
+  { value: 'Ready for QA', label: 'Ready for QA' },
+  { value: 'In QA', label: 'In QA' },
+  { value: 'Passed', label: 'Passed' },
+  { value: 'Failed', label: 'Failed' }
+];
+
 export default function TasksBoardPanel({ active }) {
   const { allTasks, loadAllTasks } = useData();
   const [personFilter, setPersonFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [qaStatusFilter, setQaStatusFilter] = useState('');
 
   useEffect(() => {
     if (active) loadAllTasks();
@@ -27,8 +37,9 @@ export default function TasksBoardPanel({ active }) {
     let f = allTasks;
     if (personFilter) f = f.filter(t => t.assignee === personFilter);
     if (statusFilter) f = f.filter(t => t.status === statusFilter);
+    if (qaStatusFilter) f = f.filter(t => (t.qaStatus || 'Not Ready') === qaStatusFilter);
     return f;
-  }, [allTasks, personFilter, statusFilter]);
+  }, [allTasks, personFilter, statusFilter, qaStatusFilter]);
 
   const counts = useMemo(() => ({
     total: filtered.length,
@@ -37,6 +48,14 @@ export default function TasksBoardPanel({ active }) {
     inProgress: filtered.filter(t => t.status === 'In Progress').length,
     blocked: filtered.filter(t => t.status === 'Blocked').length,
     done: filtered.filter(t => t.status === 'Done').length
+  }), [filtered]);
+
+  const qaCounts = useMemo(() => ({
+    notReady: filtered.filter(t => (t.qaStatus || 'Not Ready') === 'Not Ready').length,
+    readyForQa: filtered.filter(t => t.qaStatus === 'Ready for QA').length,
+    inQa: filtered.filter(t => t.qaStatus === 'In QA').length,
+    passed: filtered.filter(t => t.qaStatus === 'Passed').length,
+    failed: filtered.filter(t => t.qaStatus === 'Failed').length
   }), [filtered]);
 
   return (
@@ -48,6 +67,13 @@ export default function TasksBoardPanel({ active }) {
         <div className="summary-card"><div className="num-big">{counts.inProgress}</div><div className="cap">In progress</div></div>
         <div className="summary-card"><div className="num-big">{counts.blocked}</div><div className="cap">Blocked</div></div>
         <div className="summary-card"><div className="num-big">{counts.done}</div><div className="cap">Done</div></div>
+      </div>
+      <div className="summary-row">
+        <div className="summary-card"><div className="num-big">{qaCounts.notReady}</div><div className="cap">QA: Not ready</div></div>
+        <div className="summary-card"><div className="num-big">{qaCounts.readyForQa}</div><div className="cap">QA: Ready for QA</div></div>
+        <div className="summary-card"><div className="num-big">{qaCounts.inQa}</div><div className="cap">QA: In QA</div></div>
+        <div className="summary-card"><div className="num-big">{qaCounts.passed}</div><div className="cap">QA: Passed</div></div>
+        <div className="summary-card"><div className="num-big">{qaCounts.failed}</div><div className="cap">QA: Failed</div></div>
       </div>
       <div className="filter-row">
         <div className="filter-field">
@@ -61,6 +87,12 @@ export default function TasksBoardPanel({ active }) {
           <label>Status</label>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             {STATUS_FILTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+        <div className="filter-field">
+          <label>QA Status</label>
+          <select value={qaStatusFilter} onChange={(e) => setQaStatusFilter(e.target.value)}>
+            {QA_STATUS_FILTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
         <div className="filter-field">

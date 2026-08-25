@@ -1,4 +1,4 @@
-# Migration notes — things noticed but intentionally NOT changed
+# Migration and QA-workflow notes — things noticed but intentionally NOT changed
 
 Per the migration constraints, this is a pure structural port (vanilla
 HTML/CSS/JS → Vite + React) with zero functional changes. Anything below
@@ -87,3 +87,74 @@ The React port preserves this exactly (tab state lives in `useState` in
 `App.jsx`, not in the URL). Worth considering as a genuine improvement
 later (shareable links to a specific ticket or tab) but that would be a
 new feature, so it's parked here rather than implemented.
+
+---
+
+# Phase 2 — QA workflow layer
+
+## 9. No notifications on QA state changes
+
+Failing QA, passing QA, or logging a bug report doesn't notify anyone —
+the assignee finds out only by looking at the ticket. Given the team is
+small, this may be fine, but a "your ticket failed QA" signal (even just
+a highlighted row somewhere, not necessarily email/Slack) seems like an
+obvious next step once this phase is confirmed working. Not built —
+flagging per the instruction to note rather than implement.
+
+## 10. `Failed → Ready for QA` re-submission was inferred, not specified
+
+The original spec didn't say what happens after a ticket fails QA. I
+implemented "Mark Ready for QA" as available from both `Not Ready` and
+`Failed` (gated on `status === 'Done'` either way), so a dev can fix the
+bug and resubmit for QA without the ticket getting stuck. This was
+confirmed with the user before implementing, but flagging here too since
+it's a state-machine detail invented during this phase, not pulled
+directly from written requirements. There's no explicit signal on the
+ticket that this is a *re-submission* after a prior failure (the old
+`Failed` bug report just stays visible under "Resolved" or "Open bug
+reports" once someone marks it resolved) — worth deciding later whether
+a failed→ready resubmission should require the prior bug report(s) to be
+marked resolved first, which is not currently enforced.
+
+## 11. `reported_by` / `submitted_by` are usernames, not UUID FKs
+
+Confirmed with the user before implementing (see the "Identity column
+type" decision): `bug_reports.reported_by` and `test_evidence.submitted_by`
+are `text` columns storing the username, matching the existing
+`tasks.assignee` / `task_comments.author` convention — not a `uuid
+references profiles(id)` as the original spec literally described. No
+code in this app currently writes `auth.uid()` anywhere; introducing that
+pattern for just these two tables would be inconsistent with every other
+write path and is better done as a deliberate, app-wide change (probably
+alongside the Phase 3 RLS tightening, which needs `auth.uid()` for real
+policies anyway).
+
+## 12. "Pass QA" always sets `status = 'Done'` unconditionally on write
+
+`passQa()` in `TaskCard.jsx` only includes `status: 'Done'` in the update
+payload when `task.status !== 'Done'` — this was a deliberate choice to
+avoid an unnecessary write, not a functional gap, but flagging in case
+you'd rather it always write `status: 'Done'` unconditionally for
+auditability (e.g. if `updated_at` triggers or history logging get added
+to `tasks` later, a no-op branch here would silently skip refreshing
+that timestamp on an already-Done ticket passing QA).
+
+## 13. No guard against double-submitting a bug report on rapid double-click
+
+`BugReportForm`'s submit button disables (`submitting` state) once
+clicked, which should prevent the obvious case, but there's no
+server-side idempotency key — a flaky double-submit under network lag
+could theoretically insert two bug reports for one Fail QA action. Not
+observed, not specifically tested, flagging as a low-probability edge
+case rather than something addressed.
+
+## 14. TicketDetailPanel required no changes
+
+The spec asked for qa_status badge, full bug report history, and full
+test evidence history on Ticket Detail. Since `TicketDetailPanel`
+already renders the full `TaskCard` for the ticket (the same component
+used on Tasks Board / My Tasks / By Person), and `TaskCard` now shows
+all of that by default with no truncation, `TicketDetailPanel.jsx` itself
+needed zero code changes — this was a case where the existing shared-card
+architecture from Phase 1 already covered a Phase 2 requirement for
+free. Confirming this wasn't overlooked, not silently skipped.
