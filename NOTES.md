@@ -116,18 +116,39 @@ reports" once someone marks it resolved) — worth deciding later whether
 a failed→ready resubmission should require the prior bug report(s) to be
 marked resolved first, which is not currently enforced.
 
-## 11. `reported_by` / `submitted_by` are usernames, not UUID FKs
+## 11. `reported_by` / `submitted_by` are usernames, not UUID FKs — RESOLVED in Phase 3 Step 1
 
-Confirmed with the user before implementing (see the "Identity column
-type" decision): `bug_reports.reported_by` and `test_evidence.submitted_by`
-are `text` columns storing the username, matching the existing
-`tasks.assignee` / `task_comments.author` convention — not a `uuid
-references profiles(id)` as the original spec literally described. No
-code in this app currently writes `auth.uid()` anywhere; introducing that
-pattern for just these two tables would be inconsistent with every other
-write path and is better done as a deliberate, app-wide change (probably
-alongside the Phase 3 RLS tightening, which needs `auth.uid()` for real
-policies anyway).
+Originally: `bug_reports.reported_by` and `test_evidence.submitted_by`
+were `text` columns storing the username, matching the existing
+`tasks.assignee` / `task_comments.author` convention, deliberately not a
+`uuid references profiles(id)` at the time (see the old reasoning this
+replaces, below).
+
+Phase 3 Step 1 (`supabase/005_fk_fixes.sql`) added the real FK:
+`reported_by_id uuid references profiles(id)` and `submitted_by_id`
+likewise, backfilled by case-insensitive username match. **Backfill
+verified with zero orphaned rows** (confirmed directly via the live
+database: all 6 existing `bug_reports` rows and both `test_evidence`
+rows matched cleanly to `narendra`'s profile). `AuthContext` now exposes
+`currentUserId` (the Supabase Auth user id) alongside the existing
+`currentUser` (username string) specifically to support this — this is
+the first place in the app that plumbs `auth.uid()`-equivalent identity
+client-side, which matters for Step 2's RLS policies since several of
+them need `auth.uid()` to check.
+
+The migration is intentionally staged: PART 1 (add + backfill, applied)
+keeps the old text columns alongside the new FK, and app code now writes
+*both* on every insert during this transition window. PART 2 (drop the
+old text columns, NOT YET RUN) is gated behind two conditions: zero
+orphans (confirmed) and the deployed app writing the new columns on
+every insert (true in code now, but only takes effect once this branch
+ships to production — do not run PART 2 until after that deploy is
+confirmed live, or new rows arriving via the *old* production code
+would silently lack `reported_by_id`/`submitted_by_id`).
+
+Display-side, `DataContext.jsx` now joins `profiles` via the new FK
+(`profiles!reported_by_id(username)`) and prefers that over the legacy
+text column, which stays only as a fallback until PART 2 removes it.
 
 ## 12. "Pass QA" always sets `status = 'Done'` unconditionally on write
 

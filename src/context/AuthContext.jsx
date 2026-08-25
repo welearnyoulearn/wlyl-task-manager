@@ -8,12 +8,14 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState('');
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [restoring, setRestoring] = useState(true);
   const { loadProfiles } = useProfiles();
   const { loadAllEntries, loadAllTasks } = useData();
 
-  const finishLogin = useCallback((name, admin) => {
+  const finishLogin = useCallback((id, name, admin) => {
+    setCurrentUserId(id);
     setCurrentUser(name);
     setIsAdmin(admin);
     loadAllEntries();
@@ -26,7 +28,7 @@ export function AuthProvider({ children }) {
     if (!user) return;
     const { data: profile } = await sb.from('profiles').select('username, is_admin').eq('id', user.id).single();
     if (!profile) return;
-    finishLogin(profile.username, profile.is_admin);
+    finishLogin(user.id, profile.username, profile.is_admin);
   }, [finishLogin]);
 
   useEffect(() => {
@@ -95,12 +97,13 @@ export function AuthProvider({ children }) {
   const logout = useCallback(async () => {
     await sb.auth.signOut();
     setCurrentUser('');
+    setCurrentUserId(null);
     setIsAdmin(false);
   }, []);
 
   return (
     <AuthContext.Provider value={{
-      currentUser, isAdmin, restoring,
+      currentUser, currentUserId, isAdmin, restoring,
       attemptLogin, createFirstAdmin, logout, loadProfiles
     }}>
       {children}

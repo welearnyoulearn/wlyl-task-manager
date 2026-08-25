@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useData } from '../context/DataContext.jsx';
 
 export default function TestEvidenceForm({ task, onClose }) {
-  const { currentUser } = useAuth();
+  const { currentUser, currentUserId } = useAuth();
   const { loadAllTasks } = useData();
 
   const [runUrl, setRunUrl] = useState('');
@@ -30,6 +30,7 @@ export default function TestEvidenceForm({ task, onClose }) {
       const { error } = await sb.from('test_evidence').insert({
         task_id: task.key,
         submitted_by: currentUser,
+        submitted_by_id: currentUserId,
         run_url: runUrl,
         passed_count: passed,
         failed_count: failed,

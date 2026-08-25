@@ -52,9 +52,15 @@ export function DataProvider({ children }) {
       if (tErr) throw tErr;
       const { data: comments, error: cErr } = await sb.from('task_comments').select('*').order('created_at', { ascending: true });
       if (cErr) throw cErr;
-      const { data: bugReports, error: bErr } = await sb.from('bug_reports').select('*').order('created_at', { ascending: false });
+      const { data: bugReports, error: bErr } = await sb
+        .from('bug_reports')
+        .select('*, reported_by_profile:profiles!reported_by_id(username)')
+        .order('created_at', { ascending: false });
       if (bErr) throw bErr;
-      const { data: testEvidence, error: evErr } = await sb.from('test_evidence').select('*').order('created_at', { ascending: false });
+      const { data: testEvidence, error: evErr } = await sb
+        .from('test_evidence')
+        .select('*, submitted_by_profile:profiles!submitted_by_id(username)')
+        .order('created_at', { ascending: false });
       if (evErr) throw evErr;
       const mapped = (tasks || []).map(t => ({
         key: t.id,
@@ -77,7 +83,12 @@ export function DataProvider({ children }) {
         bugReports: (bugReports || []).filter(b => b.task_id === t.id).map(b => ({
           key: b.id,
           id: b.id,
-          reportedBy: b.reported_by,
+          reportedById: b.reported_by_id,
+          // Prefer the joined profiles.username (real FK) over the legacy
+          // text column, which stays populated during the migration
+          // transition window (see supabase/005_fk_fixes.sql) and is only
+          // used here as a fallback until PART 2 of that migration drops it.
+          reportedBy: b.reported_by_profile?.username || b.reported_by,
           stepsToReproduce: b.steps_to_reproduce,
           expectedBehavior: b.expected_behavior,
           actualBehavior: b.actual_behavior,
@@ -91,7 +102,9 @@ export function DataProvider({ children }) {
         testEvidence: (testEvidence || []).filter(ev => ev.task_id === t.id).map(ev => ({
           key: ev.id,
           id: ev.id,
-          submittedBy: ev.submitted_by,
+          submittedById: ev.submitted_by_id,
+          // Same fallback pattern as bugReports above.
+          submittedBy: ev.submitted_by_profile?.username || ev.submitted_by,
           runUrl: ev.run_url,
           passedCount: ev.passed_count,
           failedCount: ev.failed_count,

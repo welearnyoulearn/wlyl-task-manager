@@ -9,7 +9,7 @@ const SEVERITIES = ['Blocker', 'Major', 'Minor', 'Cosmetic'];
 // submit) or from the standalone "Report Bug" button (which just logs the
 // bug without touching qa_status) — see the `failsQa` prop.
 export default function BugReportForm({ task, failsQa, onClose }) {
-  const { currentUser } = useAuth();
+  const { currentUser, currentUserId } = useAuth();
   const { loadAllTasks } = useData();
 
   const [stepsToReproduce, setStepsToReproduce] = useState('');
@@ -31,6 +31,7 @@ export default function BugReportForm({ task, failsQa, onClose }) {
       const { error: insertErr } = await sb.from('bug_reports').insert({
         task_id: task.key,
         reported_by: currentUser,
+        reported_by_id: currentUserId,
         steps_to_reproduce: stepsToReproduce,
         expected_behavior: expectedBehavior,
         actual_behavior: actualBehavior,
