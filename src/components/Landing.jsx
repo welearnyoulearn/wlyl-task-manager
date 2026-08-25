@@ -19,7 +19,7 @@ function LoginBox({ role, title, icon, hint, open, onToggle, onOpenSetup }) {
   };
 
   return (
-    <div className={`landing-login-box ${open ? 'open' : ''}`}>
+    <div id={`${role}Box`} className={`landing-login-box ${open ? 'open' : ''}`}>
       <div className="landing-login-box-header" onClick={onToggle}>
         <div className="landing-login-box-icon">{icon}</div>
         <div>

@@ -4,10 +4,19 @@ import { TEST_MEMBER, TEST_ADMIN, requireTestAccounts, loginFromLanding, logout 
 test.beforeAll(requireTestAccounts);
 
 test.describe('Login', () => {
+  test('logged-out landing page shows #cornerLoginBtn (regression: id dropped in the React migration, broke mobile CSS sizing)', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#cornerLoginBtn')).toBeVisible();
+    await expect(page.locator('#cornerLoginBtn')).toHaveText('Sign in');
+  });
+
   test('member can sign in from the landing page', async ({ page }) => {
     await loginFromLanding(page, 'member', TEST_MEMBER);
     await expect(page.locator('#appLayout')).toBeVisible();
     await expect(page.locator('#adminSidebar')).toBeHidden();
+    // #cornerUserBadge: same regression as #cornerLoginBtn above - dropped
+    // in the React migration, silently broke the mobile CSS sizing rule.
+    await expect(page.locator('#cornerUserBadge')).toBeVisible();
     await expect(page.locator('#authCorner').getByText(TEST_MEMBER.username, { exact: false })).toBeVisible();
     await logout(page);
   });

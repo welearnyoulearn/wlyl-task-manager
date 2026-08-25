@@ -159,29 +159,72 @@ needed zero code changes — this was a case where the existing shared-card
 architecture from Phase 1 already covered a Phase 2 requirement for
 free. Confirming this wasn't overlooked, not silently skipped.
 
-## 15. Phase 1's React migration dropped ~30 DOM ids from the original app
+## 15. Dropped-ids audit (dropped-ids-cleanup pass) — resolved
 
-Running the Playwright suite for real against production (this hadn't
-been done before — Phase 1's tests were written but never executed
-end-to-end) surfaced that the React port silently dropped `id`
-attributes from a number of status/container/filter elements that the
-original vanilla app had — e.g. `id="taskAssignee"` on the Assign Task
-select and `id="assignTaskStatus"` on its status div, both fixed in this
-session because they broke `task-assignment.spec.js` and
-`tasks-board.spec.js`. The same pattern (an `id` present in the original
-`index.html` but missing from the equivalent React component) also
-exists on roughly 30 other elements — mostly `<div class="status">`
-containers and filter `<select>`s in `AuthModal.jsx`, `Landing.jsx`,
-`SubmitUpdateForm.jsx`, `HistoryPanel.jsx`, `ByPersonPanel.jsx`,
-`ManageAdminsPanel.jsx`, and `ManageMembersPanel.jsx`. None of these are
-referenced by any current Playwright test, so they aren't causing test
-failures, and since the app never queries the DOM by id itself (React
-state replaced that entirely — `document.getElementById` calls from the
-vanilla app have no equivalent to port), there's no evidence this causes
-a *user-facing* behavior difference either. Flagging as a "zero
-functional changes" migration gap worth a deliberate pass later
-(especially if you want future Playwright tests, or a browser
-extension/userscript some team member relies on, to be able to target
-these elements by the same ids as before) rather than fixed
-opportunistically here, since the user asked to fix only what's actually
-failing in this test run.
+Phase 1's React migration silently dropped `id` attributes present in
+the original vanilla app. Two (`taskAssignee`, `assignTaskStatus`) were
+found and fixed during Phase 2 testing because they broke real
+Playwright specs; that fix's own NOTES.md entry estimated "~30 more"
+still missing, based on a grep that turned out to be incomplete.
+
+This pass re-derived the list properly: extracted every `id="..."` from
+`index.html` at the last pre-migration commit (`48f2de9`), plus every
+dynamically-templated id (`pwToggle_${safeId}`, `pwRow_${safeId}`,
+`pwInput_${safeId}`, `comment_${t.id}`, `updateComment_${e.key}`) from
+the original `js/*.js` files, and diffed the full set against current
+`src/`. The real count was **68 dropped static ids + 5 dropped dynamic
+ids = 73**, not ~30 — worth remembering that a quick grep during a
+different task easily undercounts this kind of thing.
+
+Every dropped id was checked against what the original JS actually did
+with it (`getElementById`/`querySelector` call sites) and against every
+CSS rule in `styles.css` that targeted an id selector, then sorted into:
+
+**(a) Styling hooks — real regressions, fixed (4 ids):**
+- `cornerLoginBtn`, `cornerUserBadge` (`LoginCorner.jsx`) — a mobile
+  breakpoint rule (`font-size:12px; padding:8px 12px`) silently never
+  applied to the sign-in button or the signed-in user badge on small
+  screens, since neither id existed to match.
+- `adminBox`, `memberBox` (`Landing.jsx`'s `LoginBox`) — `#adminBox
+  .landing-login-box-icon` tints the Admin card's ◆ icon amber
+  (`#b57519`); with the id missing, both Member and Admin icons
+  silently rendered in the same default teal. Verified fixed via
+  computed-style check (`rgb(181, 117, 25)` vs `rgb(31, 138, 112)`),
+  not just id presence — see `regression-ids.spec.js`.
+
+**(b) JS behavior hooks — checked for regression, none found (2 of 2 verified safe):**
+The original codebase's *only* two `.focus()` calls (grepped across all
+of `js/*.js` to be sure nothing else was missed) were `toggleLandingBox`
+focusing the username field on box-open, and `showPasswordChangeRow`
+focusing the new-password field on row-open. Both are reproduced in
+React via `autoFocus` (`Landing.jsx`, `PasswordChangeCell.jsx`) — no
+code fix was needed, but both now have a dedicated regression test
+(`regression-ids.spec.js`) asserting focus actually lands on the right
+element, since the *id* that would have exposed a future regression no
+longer exists to grep for.
+
+**(c) Obsolete DOM hooks — left dropped, not restored (67 ids: 62 static + 5 dynamic):**
+Every other dropped id was a pure `getElementById(...).value` read, a
+`.textContent`/`.innerHTML` render target, or a `classList`/`style.display`
+toggle in the original vanilla JS — the exact category of thing React's
+controlled-component state (`useState`) replaces structurally. This
+includes all Submit Update form fields, all filter dropdowns, all
+status-message divs (`loginStatus`, `setupStatus`, `manageAdminStatus`,
+`manageMemberStatus`, etc.), the admin-management form fields, the six
+`adminTab`–`adminTab6` visibility toggles (obsolete because
+`AdminSidebar` now conditionally *mounts* instead of toggling
+`display`), and the 5 dynamic comment/password-row ids (obsolete because
+`useState`-driven conditional rendering replaced the toggle mechanism
+entirely). Each was checked against the original JS logic before being
+placed here — none involve focus, scroll, or any effect beyond value-read
+or class/style toggling, so there is no known user-facing behavior gap.
+Not restoring these is a judgment call, not a settled fact: if a future
+integration (a browser extension, a userscript, an external test suite)
+ever needs to target one of these elements by its original id, that's a
+legitimate reason to revisit this list — it isn't closed off, just not
+acted on without a concrete need.
+
+**Test suite after this pass: 20/20 passing** (16 from Phase 1 + 2,
+1 new assertion added to `auth.spec.js`, 3 new tests in
+`tests/e2e/regression-ids.spec.js`), run for real against production
+Supabase with the same dedicated test accounts used throughout.
