@@ -1,12 +1,14 @@
 import { useMemo } from 'react';
 import { useData } from '../context/DataContext.jsx';
 import { useTicketDetail } from '../context/TicketDetailContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import TaskCard from './TaskCard.jsx';
 import EntryCard from './EntryCard.jsx';
 
 export default function TicketDetailPanel({ active }) {
   const { allEntries, allTasks } = useData();
   const { ticketDetailId, closeTicketDetail } = useTicketDetail();
+  const { isAdmin } = useAuth();
 
   const task = useMemo(() => allTasks.find(t => t.ticketId === ticketDetailId), [allTasks, ticketDetailId]);
   const mentions = useMemo(() => {
@@ -26,7 +28,10 @@ export default function TicketDetailPanel({ active }) {
           <div className="empty">Ticket not found.</div>
         ) : (
           <>
-            <TaskCard task={task} showAssignee={true} />
+            {/* showAssignee also controls the delete-ticket button (admin-only
+                action) - gated to isAdmin here since Ticket Detail is reachable
+                by any user, unlike Tasks Board which is admin-sidebar-only. */}
+            <TaskCard task={task} showAssignee={isAdmin} />
             <div className="section-title" style={{ margin: '24px 0 10px' }}>Mentioned in weekly reports</div>
             {mentions.length === 0
               ? <div className="empty">Not mentioned in any weekly report yet.</div>

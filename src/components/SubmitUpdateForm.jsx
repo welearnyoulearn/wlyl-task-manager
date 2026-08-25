@@ -13,7 +13,7 @@ function todayDateInputValue() {
 }
 
 export default function SubmitUpdateForm({ active }) {
-  const { currentUser } = useAuth();
+  const { currentUser, currentUserId } = useAuth();
   const { allTasks, loadAllTasks, loadAllEntries } = useData();
 
   const [weekOf, setWeekOf] = useState(todayDateInputValue());
@@ -68,6 +68,7 @@ export default function SubmitUpdateForm({ active }) {
     const weekInfo = getISOWeek(weekOf);
     const entry = {
       name, week_of: weekOf,
+      user_id: currentUserId,
       week_number: weekInfo ? weekInfo.week : null,
       week_year: weekInfo ? weekInfo.year : null,
       completed,
