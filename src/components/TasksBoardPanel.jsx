@@ -60,7 +60,7 @@ export default function TasksBoardPanel({ active }) {
 
   return (
     <div className={`panel ${active ? 'active' : ''}`} id="panel-tasksboard">
-      <div className="summary-row">
+      <div className="summary-row" id="taskSummaryRow">
         <div className="summary-card"><div className="num-big">{counts.total}</div><div className="cap">Total tasks</div></div>
         <div className="summary-card"><div className="num-big">{counts.awaitingAccept}</div><div className="cap">Awaiting accept</div></div>
         <div className="summary-card"><div className="num-big">{counts.notStarted}</div><div className="cap">Not started</div></div>
@@ -68,7 +68,7 @@ export default function TasksBoardPanel({ active }) {
         <div className="summary-card"><div className="num-big">{counts.blocked}</div><div className="cap">Blocked</div></div>
         <div className="summary-card"><div className="num-big">{counts.done}</div><div className="cap">Done</div></div>
       </div>
-      <div className="summary-row">
+      <div className="summary-row" id="qaSummaryRow">
         <div className="summary-card"><div className="num-big">{qaCounts.notReady}</div><div className="cap">QA: Not ready</div></div>
         <div className="summary-card"><div className="num-big">{qaCounts.readyForQa}</div><div className="cap">QA: Ready for QA</div></div>
         <div className="summary-card"><div className="num-big">{qaCounts.inQa}</div><div className="cap">QA: In QA</div></div>

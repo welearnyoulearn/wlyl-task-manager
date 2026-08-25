@@ -55,7 +55,7 @@ export default function AssignTaskPanel({ active }) {
         <div className="meta-row">
           <div className="meta-field">
             <label>Assign to</label>
-            <select value={assignee} onChange={(e) => setAssignee(e.target.value)}>
+            <select id="taskAssignee" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
               <option value="">— choose person —</option>
               {people.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
@@ -90,7 +90,7 @@ export default function AssignTaskPanel({ active }) {
         <div className="actions">
           <button className="btn-primary" onClick={assignTask}>Assign Task</button>
         </div>
-        <div className="status">{status}</div>
+        <div className="status" id="assignTaskStatus">{status}</div>
       </div>
     </div>
   );

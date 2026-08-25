@@ -158,3 +158,30 @@ all of that by default with no truncation, `TicketDetailPanel.jsx` itself
 needed zero code changes — this was a case where the existing shared-card
 architecture from Phase 1 already covered a Phase 2 requirement for
 free. Confirming this wasn't overlooked, not silently skipped.
+
+## 15. Phase 1's React migration dropped ~30 DOM ids from the original app
+
+Running the Playwright suite for real against production (this hadn't
+been done before — Phase 1's tests were written but never executed
+end-to-end) surfaced that the React port silently dropped `id`
+attributes from a number of status/container/filter elements that the
+original vanilla app had — e.g. `id="taskAssignee"` on the Assign Task
+select and `id="assignTaskStatus"` on its status div, both fixed in this
+session because they broke `task-assignment.spec.js` and
+`tasks-board.spec.js`. The same pattern (an `id` present in the original
+`index.html` but missing from the equivalent React component) also
+exists on roughly 30 other elements — mostly `<div class="status">`
+containers and filter `<select>`s in `AuthModal.jsx`, `Landing.jsx`,
+`SubmitUpdateForm.jsx`, `HistoryPanel.jsx`, `ByPersonPanel.jsx`,
+`ManageAdminsPanel.jsx`, and `ManageMembersPanel.jsx`. None of these are
+referenced by any current Playwright test, so they aren't causing test
+failures, and since the app never queries the DOM by id itself (React
+state replaced that entirely — `document.getElementById` calls from the
+vanilla app have no equivalent to port), there's no evidence this causes
+a *user-facing* behavior difference either. Flagging as a "zero
+functional changes" migration gap worth a deliberate pass later
+(especially if you want future Playwright tests, or a browser
+extension/userscript some team member relies on, to be able to target
+these elements by the same ids as before) rather than fixed
+opportunistically here, since the user asked to fix only what's actually
+failing in this test run.

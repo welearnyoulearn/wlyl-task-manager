@@ -8,7 +8,7 @@ test.describe('Login', () => {
     await loginFromLanding(page, 'member', TEST_MEMBER);
     await expect(page.locator('#appLayout')).toBeVisible();
     await expect(page.locator('#adminSidebar')).toBeHidden();
-    await expect(page.getByText(TEST_MEMBER.username, { exact: false })).toBeVisible();
+    await expect(page.locator('#authCorner').getByText(TEST_MEMBER.username, { exact: false })).toBeVisible();
     await logout(page);
   });
 
@@ -16,7 +16,7 @@ test.describe('Login', () => {
     await loginFromLanding(page, 'admin', TEST_ADMIN);
     await expect(page.locator('#appLayout')).toBeVisible();
     await expect(page.locator('#adminSidebar')).toBeVisible();
-    await expect(page.getByText(`${TEST_ADMIN.username} (admin)`)).toBeVisible();
+    await expect(page.locator('#authCorner').getByText(`${TEST_ADMIN.username} (admin)`)).toBeVisible();
     await logout(page);
   });
 

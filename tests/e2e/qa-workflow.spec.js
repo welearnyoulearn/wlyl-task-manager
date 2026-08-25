@@ -86,7 +86,7 @@ test.describe('QA workflow', () => {
     const numberInputs = card.locator('input[type="number"]');
     await numberInputs.nth(0).fill('12');
     await numberInputs.nth(1).fill('0');
-    await card.getByRole('button', { name: 'Attach' }).click();
+    await card.getByRole('button', { name: 'Attach', exact: true }).click();
 
     await expect(card.getByText('12/12 passed')).toBeVisible();
     await expect(card.getByRole('link', { name: 'run' })).toHaveAttribute('href', 'https://github.com/example/repo/actions/runs/123');
