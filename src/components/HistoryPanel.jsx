@@ -3,9 +3,18 @@ import { useData } from '../context/DataContext.jsx';
 import EntryCard from './EntryCard.jsx';
 import { sb } from '../lib/supabase.js';
 import { formatWeekLabel } from '../lib/utils.js';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
+} from '@/components/ui/alert-dialog';
 
 export default function HistoryPanel({ active }) {
   const { allEntries, loadAllEntries } = useData();
+  const { toast } = useToast();
   const [personFilter, setPersonFilter] = useState('');
   const [weekFilter, setWeekFilter] = useState('');
 
@@ -30,13 +39,13 @@ export default function HistoryPanel({ active }) {
   const contributors = new Set(filtered.map(e => e.name)).size;
 
   const deleteEntry = async (key) => {
-    if (!confirm('Delete this update?')) return;
     try {
       const { error } = await sb.from('weekly_updates').delete().eq('id', key);
       if (error) throw error;
       await loadAllEntries();
+      toast({ description: 'Update deleted.' });
     } catch (e) {
-      alert('Could not delete: ' + e.message);
+      toast({ variant: 'destructive', description: 'Could not delete: ' + e.message });
     }
   };
 
@@ -50,22 +59,22 @@ export default function HistoryPanel({ active }) {
       </div>
       <div className="filter-row">
         <div className="filter-field">
-          <label>Person</label>
-          <select value={personFilter} onChange={(e) => setPersonFilter(e.target.value)}>
+          <Label>Person</Label>
+          <NativeSelect value={personFilter} onChange={(e) => setPersonFilter(e.target.value)}>
             <option value="">All</option>
             {people.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
+          </NativeSelect>
         </div>
         <div className="filter-field">
-          <label>Week</label>
-          <select value={weekFilter} onChange={(e) => setWeekFilter(e.target.value)}>
+          <Label>Week</Label>
+          <NativeSelect value={weekFilter} onChange={(e) => setWeekFilter(e.target.value)}>
             <option value="">All</option>
             {weeks.map(w => <option key={w} value={w}>{w}</option>)}
-          </select>
+          </NativeSelect>
         </div>
         <div className="filter-field">
-          <label style={{ visibility: 'hidden' }}>go</label>
-          <button className="btn-secondary" onClick={loadAllEntries}>Refresh</button>
+          <Label style={{ visibility: 'hidden' }}>go</Label>
+          <Button variant="secondary" onClick={loadAllEntries}>Refresh</Button>
         </div>
       </div>
       <div className="table-scroll">
@@ -90,7 +99,25 @@ export default function HistoryPanel({ active }) {
                 <td className="num">{e.catTesting || 0}</td>
                 <td className="num">{e.catDocs || 0}</td>
                 <td>{e.blocked && e.blocked.trim() ? '⚠️' : '—'}</td>
-                <td><button className="del-btn" onClick={() => deleteEntry(e.key)}>delete</button></td>
+                <td>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm">Delete</Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this update?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {e.name}'s report for {e.weekOf}. This cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => deleteEntry(e.key)}>Delete</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </td>
               </tr>
             ))}
           </tbody>

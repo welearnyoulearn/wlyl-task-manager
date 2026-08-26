@@ -12,7 +12,11 @@ test.describe('Task assignment and lifecycle', () => {
     await page.locator('#adminSidebar').getByText('Assign Task').click();
     await page.locator('#taskAssignee').selectOption({ label: TEST_MEMBER.username });
     await page.locator('#panel-assigntask input[placeholder*="staging environment"]').fill(title);
+    // Assigning now opens a confirmation Dialog before the actual insert
+    // (Step 6, item 13, Phase 5) - "Assign Task" opens it, "Confirm &
+    // Assign" inside the dialog does the write.
     await page.getByRole('button', { name: 'Assign Task' }).click();
+    await page.getByRole('button', { name: 'Confirm & Assign' }).click();
     await expect(page.locator('#assignTaskStatus')).toContainText('assigned to');
     const ticketMatch = await page.locator('#assignTaskStatus').textContent();
     const ticketId = ticketMatch.match(/WLYL-\d+/)?.[0];

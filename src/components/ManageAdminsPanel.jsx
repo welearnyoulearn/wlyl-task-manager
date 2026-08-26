@@ -3,10 +3,20 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useProfiles } from '../context/ProfilesContext.jsx';
 import { callManageUser } from '../lib/supabase.js';
 import PasswordChangeCell from './PasswordChangeCell.jsx';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
+} from '@/components/ui/alert-dialog';
 
 export default function ManageAdminsPanel({ active }) {
   const { loadProfiles } = useAuth();
   const { profiles } = useProfiles();
+  const { toast } = useToast();
 
   const [promoteSelect, setPromoteSelect] = useState('');
   const [promotePassword, setPromotePassword] = useState('');
@@ -29,8 +39,10 @@ export default function ManageAdminsPanel({ active }) {
       await loadProfiles();
       setPromotePassword('');
       setStatus(`${promoteSelect} promoted to admin.`);
+      toast({ description: `${promoteSelect} promoted to admin.` });
     } catch (e) {
       setStatus('Error promoting member: ' + e.message);
+      toast({ variant: 'destructive', description: 'Error promoting member: ' + e.message });
     }
   };
 
@@ -44,22 +56,20 @@ export default function ManageAdminsPanel({ active }) {
       setNewAdminName('');
       setNewAdminPassword('');
       setStatus(`${name} added as admin.`);
+      toast({ description: `${name} added as admin.` });
     } catch (e) {
       setStatus('Error adding admin: ' + e.message);
+      toast({ variant: 'destructive', description: 'Error adding admin: ' + e.message });
     }
   };
 
   const removeAdmin = async (username) => {
-    if (admins.length === 1) {
-      setStatus('Cannot remove the last admin.');
-      return;
-    }
-    if (!confirm(`Remove ${username} as admin?`)) return;
     try {
       await callManageUser({ action: 'remove', username });
       await loadProfiles();
+      toast({ description: `${username} removed as admin.` });
     } catch (e) {
-      alert('Could not remove admin: ' + e.message);
+      toast({ variant: 'destructive', description: 'Could not remove admin: ' + e.message });
     }
   };
 
@@ -70,31 +80,31 @@ export default function ManageAdminsPanel({ active }) {
         <div className="section-hint">Pick someone who has already submitted an update and make them admin.</div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 24 }}>
           <div className="meta-field" style={{ maxWidth: 220 }}>
-            <label>Member</label>
-            <select value={promoteSelect} onChange={(e) => setPromoteSelect(e.target.value)}>
+            <Label>Member</Label>
+            <NativeSelect value={promoteSelect} onChange={(e) => setPromoteSelect(e.target.value)}>
               <option value="">— choose —</option>
               {members.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
+            </NativeSelect>
           </div>
           <div className="meta-field" style={{ maxWidth: 220 }}>
-            <label>Set password for them</label>
-            <input type="password" placeholder="Set password" value={promotePassword} onChange={(e) => setPromotePassword(e.target.value)} />
+            <Label>Set password for them</Label>
+            <Input type="password" placeholder="Set password" value={promotePassword} onChange={(e) => setPromotePassword(e.target.value)} />
           </div>
-          <button className="btn-primary" onClick={promoteMember}>Promote to Admin</button>
+          <Button onClick={promoteMember}>Promote to Admin</Button>
         </div>
 
         <div className="section-title" style={{ marginBottom: 4 }}>Add a new admin</div>
         <div className="section-hint">Anyone added here can sign in with admin access using this password.</div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 20 }}>
           <div className="meta-field" style={{ maxWidth: 220 }}>
-            <label>Name</label>
-            <input type="text" placeholder="e.g. sunny" value={newAdminName} onChange={(e) => setNewAdminName(e.target.value)} />
+            <Label>Name</Label>
+            <Input type="text" placeholder="e.g. sunny" value={newAdminName} onChange={(e) => setNewAdminName(e.target.value)} />
           </div>
           <div className="meta-field" style={{ maxWidth: 220 }}>
-            <label>Password</label>
-            <input type="password" placeholder="Set password" value={newAdminPassword} onChange={(e) => setNewAdminPassword(e.target.value)} />
+            <Label>Password</Label>
+            <Input type="password" placeholder="Set password" value={newAdminPassword} onChange={(e) => setNewAdminPassword(e.target.value)} />
           </div>
-          <button className="btn-primary" onClick={addAdmin}>Add Admin</button>
+          <Button onClick={addAdmin}>Add Admin</Button>
         </div>
         <div className="status">{status}</div>
 
@@ -109,7 +119,29 @@ export default function ManageAdminsPanel({ active }) {
                 <tr key={a.id}>
                   <td>{a.username}</td>
                   <PasswordChangeCell username={a.username} />
-                  <td><button className="del-btn" onClick={() => removeAdmin(a.username)}>remove</button></td>
+                  <td>
+                    {admins.length === 1 ? (
+                      <Button variant="destructive" size="sm" disabled title="Cannot remove the last admin">Remove</Button>
+                    ) : (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" size="sm">Remove</Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove {a.username} as admin?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              They will lose admin access immediately. This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => removeAdmin(a.username)}>Remove</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -484,3 +484,62 @@ existing project convention (see `tests/README.md`), but the volume is
 now large enough to have caused the one flaky failure above; worth
 reconsidering a teardown or a periodic manual cleanup pass if flakiness
 recurs.
+
+---
+
+# Phase 5 follow-up — mandatory test plan + mandatory QA assignment
+
+## 22. Test plan required on Mark Ready for QA
+
+Clicking "Mark Ready for QA" now opens a required dialog: the assignee
+must provide a test plan (what QA should verify) before the click can
+actually flip `qa_status` to `Ready for QA`. Both fields
+(`qa_status` and `test_plan`) are written in the same request, and the
+test plan is then visible on the ticket card indefinitely (no separate
+"share with tester" mechanism needed — whoever can see the ticket sees
+the plan). Enforced at the database level too
+(`supabase/012_test_plan.sql` extends the existing
+`enforce_tasks_column_role_gate` trigger with a not-null-at-transition
+check), not just by the dialog requiring the field client-side. No
+character limit — any non-empty, non-whitespace-only text is accepted.
+
+Also fixed at the same time: **Report Bug** and **Attach Test Run**
+buttons are now gated to `tester`/`both`/admin (`canDoQaActions`) —
+previously any dev assignee saw them regardless of role, which didn't
+match the rest of the QA-action gating pattern (Start/Pass/Fail QA were
+already role-gated, these two were overlooked).
+
+## 23. QA assignment is now mandatory — self-pick removed entirely
+
+Previously (Phase 4, note #20): `qa_assignee` was optional — if an
+admin didn't route a ticket to a specific tester, any qualified tester
+could self-pick it via Start QA. This is now removed: a ticket at
+`Ready for QA` with `qa_assignee` still null shows no Start QA button
+to **anyone**, including a `both`-role member who is also the ticket's
+own dev assignee (previously the one case that was actually reachable
+through the UI, per note #20's finding about navigation gaps). The
+ticket instead shows a red `QA: unassigned` flag next to its title.
+
+Enforced at three layers, consistent with this project's established
+pattern for QA-routing rules:
+- **UI** (`TaskCard.jsx`): `canStartQa` now requires
+  `!!task.qaAssignee` in addition to `isQaAssignee`.
+- **RLS** (`supabase/013_mandatory_qa_assignment.sql`
+  PART 1): `tasks_update_qa`'s USING clause no longer treats a null
+  `qa_assignee` as "any qualified tester passes" — it now requires
+  `tasks.qa_assignee = auth.uid()` unconditionally for non-admins.
+- **Trigger** (same migration, PART 2): `enforce_tasks_column_role_gate`
+  gained a dedicated branch for the `Ready for QA -> In QA` transition
+  specifically, raising a clear exception ("has not been assigned to a
+  tester yet" vs. "only the assigned tester can start QA") depending on
+  which condition failed — closes the same RLS column-scoping gap
+  this trigger has closed for every other transition since Phase 4.
+
+**Test impact:** `qa-assignment.spec.js`'s second test used to confirm
+self-pick *worked* as a deliberate regression check; it now confirms
+self-pick is *blocked* (same ticket setup, inverted assertion — no
+Start QA button, plus a negative-path direct-API check). Every test in
+`qa-workflow.spec.js` that drives a ticket through Start QA had to gain
+an explicit admin-assigns-QA-to-self step first, since `TEST_MEMBER`
+(the account those tests use, `member_role = 'both'`) can no longer
+reach Start QA without going through Assign QA like anyone else.

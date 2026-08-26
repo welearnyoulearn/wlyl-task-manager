@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function CommentThread({ comments, onPost }) {
   const [text, setText] = useState('');
@@ -23,14 +25,15 @@ export default function CommentThread({ comments, onPost }) {
         ))}
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <input
+        <Input
           type="text"
           placeholder="Add a comment/update..."
           value={text}
           onChange={(e) => setText(e.target.value)}
-          style={{ flex: 1, padding: '7px 10px', border: '1px solid var(--line)', borderRadius: 6, fontSize: 13 }}
+          onKeyDown={(e) => { if (e.key === 'Enter') post(); }}
+          style={{ flex: 1 }}
         />
-        <button className="btn-secondary" style={{ padding: '7px 14px' }} onClick={post}>Post</button>
+        <Button variant="secondary" onClick={post}>Post</Button>
       </div>
     </>
   );

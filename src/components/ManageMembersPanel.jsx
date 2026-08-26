@@ -4,6 +4,15 @@ import { useProfiles } from '../context/ProfilesContext.jsx';
 import { callManageUser, sb } from '../lib/supabase.js';
 import PasswordChangeCell from './PasswordChangeCell.jsx';
 import MemberRoleCell from './MemberRoleCell.jsx';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
+} from '@/components/ui/alert-dialog';
 
 const ROLE_OPTIONS = [
   { value: 'developer', label: 'Developer' },
@@ -14,6 +23,7 @@ const ROLE_OPTIONS = [
 export default function ManageMembersPanel({ active }) {
   const { loadProfiles } = useAuth();
   const { profiles } = useProfiles();
+  const { toast } = useToast();
 
   const [newMemberUsername, setNewMemberUsername] = useState('');
   const [newMemberPassword, setNewMemberPassword] = useState('');
@@ -45,18 +55,20 @@ export default function ManageMembersPanel({ active }) {
       setNewMemberPassword('');
       setNewMemberRole('both');
       setStatus(`${username} added as a member.`);
+      toast({ description: `${username} added as a member.` });
     } catch (e) {
       setStatus('Error adding member: ' + e.message);
+      toast({ variant: 'destructive', description: 'Error adding member: ' + e.message });
     }
   };
 
   const removeMember = async (username) => {
-    if (!confirm(`Remove ${username}? They will no longer be able to log in.`)) return;
     try {
       await callManageUser({ action: 'remove', username });
       await loadProfiles();
+      toast({ description: `${username} removed.` });
     } catch (e) {
-      alert('Could not remove member: ' + e.message);
+      toast({ variant: 'destructive', description: 'Could not remove member: ' + e.message });
     }
   };
 
@@ -67,20 +79,20 @@ export default function ManageMembersPanel({ active }) {
         <div className="section-hint">Create a username and password for someone to log in and submit updates.</div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 20 }}>
           <div className="meta-field" style={{ maxWidth: 220 }}>
-            <label>Username</label>
-            <input type="text" placeholder="e.g. priya" value={newMemberUsername} onChange={(e) => setNewMemberUsername(e.target.value)} />
+            <Label>Username</Label>
+            <Input type="text" placeholder="e.g. priya" value={newMemberUsername} onChange={(e) => setNewMemberUsername(e.target.value)} />
           </div>
           <div className="meta-field" style={{ maxWidth: 220 }}>
-            <label>Password</label>
-            <input type="password" placeholder="Set password" value={newMemberPassword} onChange={(e) => setNewMemberPassword(e.target.value)} />
+            <Label>Password</Label>
+            <Input type="password" placeholder="Set password" value={newMemberPassword} onChange={(e) => setNewMemberPassword(e.target.value)} />
           </div>
           <div className="meta-field" style={{ maxWidth: 160 }}>
-            <label>Role</label>
-            <select value={newMemberRole} onChange={(e) => setNewMemberRole(e.target.value)}>
+            <Label>Role</Label>
+            <NativeSelect value={newMemberRole} onChange={(e) => setNewMemberRole(e.target.value)}>
               {ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+            </NativeSelect>
           </div>
-          <button className="btn-primary" onClick={addMember}>Add Member</button>
+          <Button onClick={addMember}>Add Member</Button>
         </div>
         <div className="status">{status}</div>
 
@@ -96,7 +108,25 @@ export default function ManageMembersPanel({ active }) {
                   <td>{m.username}</td>
                   <MemberRoleCell profileId={m.id} memberRole={m.member_role} onChanged={loadProfiles} />
                   <PasswordChangeCell username={m.username} />
-                  <td><button className="del-btn" onClick={() => removeMember(m.username)}>remove</button></td>
+                  <td>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm">Remove</Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Remove {m.username}?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            They will no longer be able to log in. This cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => removeMember(m.username)}>Remove</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </td>
                 </tr>
               ))}
             </tbody>

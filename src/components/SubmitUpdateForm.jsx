@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useData } from '../context/DataContext.jsx';
+import { useTicketDetail } from '../context/TicketDetailContext.jsx';
 import { sb } from '../lib/supabase.js';
-import { getISOWeek, formatWeekLabel } from '../lib/utils.js';
-
-const CAT_FIELDS = ['catDev', 'catResearch', 'catTesting', 'catDocs'];
+import { formatWeekLabel, getWeekRange } from '../lib/utils.js';
+import { computeWeeklyActivity, summarizeActivity } from '../lib/weeklyActivity.js';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 function todayDateInputValue() {
   const d = new Date();
@@ -12,103 +16,79 @@ function todayDateInputValue() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+// Ensures a weekly_updates row exists for (name, week) before writing a
+// weekly_update_items row against it - weekly_update_items.weekly_update_id
+// is a not-null FK, so a ticket note can't be posted before some report
+// row for that week exists. Posting a note is the first save action a
+// member might take in a given week (they may not have visited the
+// separate Weekly Summary tab yet), so this creates a bare placeholder
+// row (empty narrative fields, zero hours) on demand rather than forcing
+// the member to submit the summary form first just to unlock note-posting.
+async function ensureWeeklyUpdateRow(name, weekOf, userId) {
+  const { data: existing, error: selErr } = await sb
+    .from('weekly_updates')
+    .select('id')
+    .eq('name', name)
+    .eq('week_of', weekOf)
+    .maybeSingle();
+  if (selErr) throw selErr;
+  if (existing) return existing.id;
+
+  const { data: created, error: insErr } = await sb
+    .from('weekly_updates')
+    .insert({ name, week_of: weekOf, user_id: userId, cat_dev: 0, cat_research: 0, cat_testing: 0, cat_docs: 0 })
+    .select('id')
+    .single();
+  if (insErr) throw insErr;
+  return created.id;
+}
+
 export default function SubmitUpdateForm({ active }) {
   const { currentUser, currentUserId } = useAuth();
   const { allTasks, loadAllTasks, loadAllEntries } = useData();
+  const { openTicketDetail } = useTicketDetail();
+  const { toast } = useToast();
 
   const [weekOf, setWeekOf] = useState(todayDateInputValue());
-  const [completed, setCompleted] = useState('');
-  const [completedTicket, setCompletedTicket] = useState('');
-  const [inProgress, setInProgress] = useState('');
-  const [inProgressTicket, setInProgressTicket] = useState('');
-  const [cats, setCats] = useState({ catDev: '', catResearch: '', catTesting: '', catDocs: '' });
-  const [learned, setLearned] = useState('');
-  const [blocked, setBlocked] = useState('');
-  const [nextWeek, setNextWeek] = useState('');
-  const [status, setStatus] = useState('');
+  const [notes, setNotes] = useState({}); // ticketId -> note text
+  const [posting, setPosting] = useState({}); // ticketId -> bool
+  const [posted, setPosted] = useState({}); // ticketId -> bool (this session, for a quick visual confirmation beyond the toast)
 
   useEffect(() => {
-    loadAllTasks();
+    if (active) loadAllTasks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [active]);
 
-  const myAcceptedTickets = useMemo(() => {
-    if (!currentUser) return [];
-    return allTasks
-      .filter(t => t.assignee.toLowerCase() === currentUser.toLowerCase() && t.status !== 'Assigned')
-      .sort((a, b) => (b.acceptedAt || '').localeCompare(a.acceptedAt || ''));
-  }, [allTasks, currentUser]);
+  const weekRange = useMemo(() => getWeekRange(weekOf), [weekOf]);
+
+  const activity = useMemo(() => {
+    if (!weekRange) return [];
+    return computeWeeklyActivity(allTasks, currentUser, currentUserId, weekRange.start, weekRange.end);
+  }, [allTasks, currentUser, currentUserId, weekRange]);
 
   const weekLabel = weekOf ? formatWeekLabel(weekOf) : '';
 
-  const submitUpdate = async () => {
-    if (!currentUser) {
-      setStatus('Please sign in above first.');
-      return;
-    }
-    const name = currentUser.trim();
-    if (!name || !weekOf) {
-      setStatus('Please enter your name and week date.');
-      return;
-    }
-    if (!completed.trim() && !inProgress.trim()) {
-      setStatus('Please fill in at least "Completed" or "In progress".');
-      return;
-    }
-    const catValues = {};
-    for (const id of CAT_FIELDS) {
-      const raw = cats[id];
-      const num = raw === '' ? 0 : Number(raw);
-      if (raw !== '' && (!Number.isFinite(num) || num < 0)) {
-        setStatus('Category values must be zero or a positive number.');
-        return;
-      }
-      catValues[id] = num;
-    }
-    const weekInfo = getISOWeek(weekOf);
-    const entry = {
-      name, week_of: weekOf,
-      user_id: currentUserId,
-      week_number: weekInfo ? weekInfo.week : null,
-      week_year: weekInfo ? weekInfo.year : null,
-      completed,
-      completed_ticket_id: completedTicket || null,
-      in_progress: inProgress,
-      in_progress_ticket_id: inProgressTicket || null,
-      cat_dev: catValues.catDev,
-      cat_research: catValues.catResearch,
-      cat_testing: catValues.catTesting,
-      cat_docs: catValues.catDocs,
-      learned,
-      blocked,
-      next_week: nextWeek,
-      submitted_at: new Date().toISOString()
-    };
+  // Each ticket posts independently the moment its own Post button is
+  // clicked - no shared confirm dialog and no dependency on the other
+  // narrative fields, which now live on their own Weekly Summary tab.
+  // weekly_update_items has a unique (weekly_update_id, ticket_id)
+  // constraint (011_weekly_activity_items.sql), so upsert here is a
+  // real per-row update, not a delete-and-reinsert of the whole set.
+  const postNote = async (ticketId) => {
+    setPosting(p => ({ ...p, [ticketId]: true }));
     try {
-      const { error } = await sb.from('weekly_updates').upsert(entry, { onConflict: 'name,week_of' });
-      if (!error) {
-        setStatus('Submitted. Saved to shared history.');
-        await loadAllEntries();
-        setTimeout(() => setStatus(''), 2500);
-      } else {
-        setStatus('Save failed: ' + error.message);
-      }
+      const weeklyUpdateId = await ensureWeeklyUpdateRow(currentUser.trim(), weekOf, currentUserId);
+      const { error } = await sb.from('weekly_update_items')
+        .upsert({ weekly_update_id: weeklyUpdateId, ticket_id: ticketId, note: notes[ticketId] || '' }, { onConflict: 'weekly_update_id,ticket_id' });
+      if (error) throw error;
+      await loadAllEntries();
+      setPosted(p => ({ ...p, [ticketId]: true }));
+      toast({ description: `${ticketId} note posted.` });
     } catch (e) {
-      setStatus('Error saving: ' + e.message);
+      toast({ variant: 'destructive', description: `Could not post note for ${ticketId}: ` + e.message });
+    } finally {
+      setPosting(p => ({ ...p, [ticketId]: false }));
     }
-  };
-
-  const clearForm = () => {
-    setCompleted('');
-    setCompletedTicket('');
-    setInProgress('');
-    setInProgressTicket('');
-    setCats({ catDev: '', catResearch: '', catTesting: '', catDocs: '' });
-    setLearned('');
-    setBlocked('');
-    setNextWeek('');
-    setStatus('Form cleared.');
-    setTimeout(() => setStatus(''), 1500);
   };
 
   return (
@@ -116,78 +96,53 @@ export default function SubmitUpdateForm({ active }) {
       <div className="sheet">
         <div className="meta-row">
           <div className="meta-field">
-            <label>Name</label>
-            <input type="text" value={currentUser} readOnly style={{ background: '#f4f4f4' }} />
+            <Label>Name</Label>
+            <Input type="text" value={currentUser} readOnly style={{ background: '#f4f4f4' }} />
           </div>
           <div className="meta-field">
-            <label>Week of</label>
-            <input type="date" value={weekOf} onChange={(e) => setWeekOf(e.target.value)} />
+            <Label>Week of</Label>
+            <Input type="date" value={weekOf} onChange={(e) => { setWeekOf(e.target.value); setPosted({}); }} />
             <div className="week-label">{weekLabel}</div>
           </div>
         </div>
 
         <section className="first">
-          <div className="section-title">✅ Completed this week</div>
-          <div className="section-hint">One bullet per task/ticket. Link to Jira/PR where relevant.</div>
-          <div className="meta-field" style={{ marginBottom: 8, maxWidth: 320 }}>
-            <label>Related ticket (optional)</label>
-            <select value={completedTicket} onChange={(e) => setCompletedTicket(e.target.value)}>
-              <option value="">— none —</option>
-              {myAcceptedTickets.map(t => (
-                <option key={t.ticketId} value={t.ticketId}>{t.ticketId} — {t.title}</option>
+          <div className="section-title">🎯 Your ticket activity this week</div>
+          <div className="section-hint">
+            Auto-detected from tickets you're assigned to (dev or QA) that changed status, QA status, or got a comment/bug report between {weekRange?.start} and {weekRange?.end}. Add an optional note per ticket and post it — each ticket saves on its own.
+          </div>
+          {activity.length === 0 ? (
+            <div className="empty" style={{ marginTop: 8 }}>No ticket activity detected this week.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+              {activity.map(a => (
+                <div key={a.ticketKey} className="entry-block">
+                  <div className="label">
+                    <span className="ticket-link" style={{ fontSize: 12 }} onClick={() => openTicketDetail(a.ticketId)}>{a.ticketId}</span> {a.title}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>{summarizeActivity(a)}</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Input
+                      type="text"
+                      placeholder="Add a note (optional)"
+                      value={notes[a.ticketId] || ''}
+                      onChange={(e) => { setNotes(n => ({ ...n, [a.ticketId]: e.target.value })); setPosted(p => ({ ...p, [a.ticketId]: false })); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') postNote(a.ticketId); }}
+                      style={{ flex: 1 }}
+                    />
+                    <Button
+                      variant="secondary"
+                      onClick={() => postNote(a.ticketId)}
+                      disabled={posting[a.ticketId]}
+                    >
+                      {posted[a.ticketId] ? 'Posted ✓' : 'Post'}
+                    </Button>
+                  </div>
+                </div>
               ))}
-            </select>
-          </div>
-          <textarea placeholder="- Finished API integration for login (JIRA-142)" value={completed} onChange={(e) => setCompleted(e.target.value)} />
+            </div>
+          )}
         </section>
-
-        <section>
-          <div className="section-title">🔄 In progress</div>
-          <div className="section-hint">What's still open, % done if useful.</div>
-          <div className="meta-field" style={{ marginBottom: 8, maxWidth: 320 }}>
-            <label>Related ticket (optional)</label>
-            <select value={inProgressTicket} onChange={(e) => setInProgressTicket(e.target.value)}>
-              <option value="">— none —</option>
-              {myAcceptedTickets.map(t => (
-                <option key={t.ticketId} value={t.ticketId}>{t.ticketId} — {t.title}</option>
-              ))}
-            </select>
-          </div>
-          <textarea placeholder="- Dashboard redesign (~60%)" value={inProgress} onChange={(e) => setInProgress(e.target.value)} />
-        </section>
-
-        <section>
-          <div className="section-title">📊 Category breakdown</div>
-          <div className="section-hint">Rough hours or ticket count per category.</div>
-          <div className="category-grid">
-            <div className="cat"><label>Development</label><input type="number" placeholder="0" value={cats.catDev} onChange={(e) => setCats(c => ({ ...c, catDev: e.target.value }))} /></div>
-            <div className="cat"><label>Research</label><input type="number" placeholder="0" value={cats.catResearch} onChange={(e) => setCats(c => ({ ...c, catResearch: e.target.value }))} /></div>
-            <div className="cat"><label>Testing</label><input type="number" placeholder="0" value={cats.catTesting} onChange={(e) => setCats(c => ({ ...c, catTesting: e.target.value }))} /></div>
-            <div className="cat"><label>Documentation</label><input type="number" placeholder="0" value={cats.catDocs} onChange={(e) => setCats(c => ({ ...c, catDocs: e.target.value }))} /></div>
-          </div>
-        </section>
-
-        <section>
-          <div className="section-title">💡 Learned / discovered</div>
-          <textarea placeholder="- Found that the staging DB has stale seed data" value={learned} onChange={(e) => setLearned(e.target.value)} />
-        </section>
-
-        <section className="blocked-box">
-          <div className="section-title">🚧 Blocked on</div>
-          <div className="section-hint">Leave blank if nothing.</div>
-          <textarea placeholder="- Waiting on design review" value={blocked} onChange={(e) => setBlocked(e.target.value)} />
-        </section>
-
-        <section>
-          <div className="section-title">➡️ Next week</div>
-          <textarea placeholder="- Start on payment gateway integration" value={nextWeek} onChange={(e) => setNextWeek(e.target.value)} />
-        </section>
-
-        <div className="actions">
-          <button className="btn-primary" onClick={submitUpdate}>Submit Update</button>
-          <button className="btn-secondary" onClick={clearForm}>Clear Form</button>
-        </div>
-        <div className="status">{status}</div>
       </div>
     </div>
   );

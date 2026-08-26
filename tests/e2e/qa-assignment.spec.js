@@ -22,7 +22,10 @@ async function readyForQaTicket(page, title) {
   await page.locator('#adminSidebar').getByText('Assign Task').click();
   await page.locator('#taskAssignee').selectOption({ label: TEST_DEVELOPER.username });
   await page.locator('#panel-assigntask input[placeholder*="staging environment"]').fill(title);
+  // Assigning now opens a confirmation Dialog before the actual insert
+  // (Step 6, item 13, Phase 5).
   await page.getByRole('button', { name: 'Assign Task' }).click();
+  await page.getByRole('button', { name: 'Confirm & Assign' }).click();
   await expect(page.locator('#assignTaskStatus')).toContainText('assigned to');
   await logout(page);
 
@@ -31,7 +34,13 @@ async function readyForQaTicket(page, title) {
   const card = page.locator('#myTasksList .entry-card', { hasText: title });
   await card.getByRole('button', { name: 'Accept Task' }).click();
   await card.locator('select').selectOption('Done');
+  // Mark Ready for QA now opens a mandatory test-plan Dialog before it
+  // actually flips qa_status (Phase 5 follow-up) - portal-rendered, not
+  // inside `card`.
   await card.getByRole('button', { name: 'Mark Ready for QA' }).click();
+  const testPlanDialog = page.getByRole('dialog');
+  await testPlanDialog.locator('textarea').fill('Verify the happy path and one edge case.');
+  await testPlanDialog.getByRole('button', { name: 'Submit & Mark Ready for QA' }).click();
   await expect(card.getByText('QA: Ready for QA')).toBeVisible();
   await logout(page);
 }
@@ -49,8 +58,8 @@ test.describe('QA assignment', () => {
     await page.locator('#adminSidebar').getByText('Tasks Board').click();
     const boardCard = page.locator('#tasksBoardList .entry-card', { hasText: title });
     await expect(boardCard).toBeVisible();
-    await boardCard.getByRole('button', { name: 'Assign QA' }).click();
-    await boardCard.locator('select').filter({ hasText: 'any qualified tester' }).selectOption({ label: TEST_TESTER.username });
+    await boardCard.getByRole('button', { name: 'Assign QA (required)' }).click();
+    await boardCard.locator('select').filter({ hasText: 'choose a tester' }).selectOption({ label: TEST_TESTER.username });
     await expect(boardCard.getByText(`QA: ${TEST_TESTER.username}`)).toBeVisible();
     await logout(page);
 
@@ -109,21 +118,14 @@ test.describe('QA assignment', () => {
     await logout(page);
   });
 
-  test('admin leaves qa_assignee unset: a qualified tester can still self-pick via Start QA (regression check)', async ({ page }) => {
-    // Uses TEST_MEMBER (narendra, member_role='both') as BOTH the dev
-    // assignee and the person self-picking QA - deliberately, not
-    // TEST_TESTER. Discovered while writing this test: a tester-role
-    // member has no UI path to ANY ticket they aren't already the dev
-    // assignee on (My Tasks only shows your own dev assignments, Tasks
-    // Board/By Person are admin-only, there's no ticket search or URL
-    // routing - see NOTES.md). So "any qualified tester can self-pick"
-    // was always, in practice, "the ticket's own assignee, if also
-    // tester-qualified, can self-pick" - qa_assignee doesn't change
-    // that reachability, it only narrows who's ALLOWED to act once they
-    // can already see the ticket. A 'both'-role assignee is the
-    // realistic case this regression check can actually exercise
-    // through the UI; a 'tester'-only non-assignee genuinely cannot
-    // reach this ticket at all today, assigned or not.
+  test('admin leaves qa_assignee unset: Start QA is blocked for everyone, including a fully qualified self-assignee', async ({ page }) => {
+    // QA assignment is now mandatory (self-pick removed) - a ticket
+    // sitting at Ready for QA with qa_assignee still null cannot be
+    // started by anyone, not even TEST_MEMBER (narendra, member_role=
+    // 'both', who is also the ticket's own dev assignee and would have
+    // been allowed to self-pick before this change). UI check: no Start
+    // QA button at all, plus a visible "QA: unassigned" flag. Negative-
+    // path API check backs this up at the database level too.
     const title = `QA unassigned E2E ${Date.now()}`;
 
     await loginFromLanding(page, 'admin', TEST_ADMIN);
@@ -131,6 +133,7 @@ test.describe('QA assignment', () => {
     await page.locator('#taskAssignee').selectOption({ label: TEST_MEMBER.username });
     await page.locator('#panel-assigntask input[placeholder*="staging environment"]').fill(title);
     await page.getByRole('button', { name: 'Assign Task' }).click();
+    await page.getByRole('button', { name: 'Confirm & Assign' }).click();
     await expect(page.locator('#assignTaskStatus')).toContainText('assigned to');
     await logout(page);
 
@@ -140,14 +143,41 @@ test.describe('QA assignment', () => {
     await card.getByRole('button', { name: 'Accept Task' }).click();
     await card.locator('select').selectOption('Done');
     await card.getByRole('button', { name: 'Mark Ready for QA' }).click();
+    const testPlanDialog = page.getByRole('dialog');
+    await testPlanDialog.locator('textarea').fill('Verify the happy path and one edge case.');
+    await testPlanDialog.getByRole('button', { name: 'Submit & Mark Ready for QA' }).click();
     await expect(card.getByText('QA: Ready for QA')).toBeVisible();
+    await expect(card.getByText('QA: unassigned')).toBeVisible();
 
-    // No Assign QA action taken - qa_assignee stays null throughout.
-    // Same session, same person, self-picking QA on their own ticket -
-    // exactly the behavior that existed before qa_assignee was added.
-    await expect(card.getByRole('button', { name: 'Start QA' })).toBeVisible();
-    await card.getByRole('button', { name: 'Start QA' }).click();
-    await expect(card.getByText('QA: In QA')).toBeVisible();
+    // No Assign QA action taken - qa_assignee stays null. Start QA must
+    // not be offered to anyone, including this fully-qualified
+    // ('both'-role) dev assignee.
+    await expect(card.getByRole('button', { name: 'Start QA' })).toHaveCount(0);
+
+    const taskRes = await directApiCall(page, {
+      method: 'GET',
+      path: `tasks?select=id,qa_status,qa_assignee&title=eq.${encodeURIComponent(title)}`
+    });
+    const [task] = await taskRes.json();
+    expect(task).toBeTruthy();
+    expect(task.qa_assignee).toBeFalsy();
+
+    const writeRes = await directApiCall(page, {
+      method: 'PATCH',
+      path: `tasks?id=eq.${task.id}`,
+      body: { qa_status: 'In QA' }
+    });
+    if (writeRes.ok()) {
+      const body = writeRes.status() === 204 ? [] : await writeRes.json();
+      expect(body.length).toBe(0);
+    } // else: a non-2xx (trigger exception "not assigned to a tester yet") is itself proof of rejection.
+
+    const verifyRes = await directApiCall(page, {
+      method: 'GET',
+      path: `tasks?select=qa_status&id=eq.${task.id}`
+    });
+    const [verified] = await verifyRes.json();
+    expect(verified.qa_status).toBe('Ready for QA'); // unchanged
     await logout(page);
   });
 });

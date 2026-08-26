@@ -14,6 +14,8 @@ export function DataProvider({ children }) {
       if (error) throw error;
       const { data: comments, error: cErr } = await sb.from('weekly_update_comments').select('*').order('created_at', { ascending: true });
       if (cErr) throw cErr;
+      const { data: items, error: iErr } = await sb.from('weekly_update_items').select('*').order('created_at', { ascending: true });
+      if (iErr) throw iErr;
       const entries = (data || []).map(e => ({
         key: e.id,
         name: e.name,
@@ -32,6 +34,15 @@ export function DataProvider({ children }) {
         blocked: e.blocked,
         nextWeek: e.next_week,
         submittedAt: e.submitted_at,
+        // New-format per-ticket activity notes (Phase 5) - empty for every
+        // report submitted before this migration, since weekly_update_items
+        // was unused until now. Display components branch on whether this
+        // array is non-empty vs. falling back to the old completed/
+        // inProgress + *TicketId fields, so old reports keep rendering
+        // exactly as before without erroring.
+        items: (items || []).filter(i => i.weekly_update_id === e.id).map(i => ({
+          key: i.id, ticketId: i.ticket_id, note: i.note
+        })),
         comments: (comments || []).filter(c => c.weekly_update_id === e.id).map(c => ({
           author: c.author, text: c.text, at: c.created_at
         }))
@@ -81,6 +92,7 @@ export function DataProvider({ children }) {
         acceptedAt: t.accepted_at,
         createdAt: t.created_at,
         updatedAt: t.updated_at,
+        testPlan: t.test_plan,
         qaAssignee: t.qa_assignee,
         qaAssigneeUsername: t.qa_assignee_profile?.username || null,
         comments: (comments || []).filter(c => c.task_id === t.id).map(c => ({

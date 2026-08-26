@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   --ink: #17242B;
   --muted: #6B7570;
@@ -9,6 +13,30 @@
   --danger: #a83232;
   --danger-bg: #fbeceb;
   --bg: #FBF9F4;
+
+  /* shadcn/ui tokens - HSL aliases onto the WLYL palette above, not a
+     separate theme. See NOTES.md Phase 5 for the hex->HSL mapping table
+     confirmed before this migration started. */
+  --background: 43 47% 97%;
+  --foreground: 201 30% 13%;
+  --card: 0 0% 100%;
+  --card-foreground: 201 30% 13%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 201 30% 13%;
+  --primary: 165 63% 33%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 36 79% 57%;
+  --secondary-foreground: 201 30% 13%;
+  --accent-token: 158 33% 94%;
+  --accent-token-foreground: 166 63% 19%;
+  --destructive: 0 54% 43%;
+  --destructive-foreground: 0 0% 100%;
+  --muted-token: 43 25% 86%;
+  --muted-token-foreground: 150 4% 44%;
+  --border: 43 25% 86%;
+  --input: 43 25% 86%;
+  --ring: 165 63% 33%;
+  --radius: 0.75rem;
 }
 * { box-sizing: border-box; }
 body {
@@ -23,11 +51,11 @@ body {
   color: var(--ink);
   min-height: 100vh;
 }
-.wrap { max-width: 860px; margin: 0 auto; }
+.wrap { max-width: 1360px; margin: 0 auto; }
 .brand-header {
-  display: flex; align-items: center; gap: 16px; margin-bottom: 28px;
+  display: flex; align-items: center; gap: 16px; margin-bottom: 24px;
   background: #fff; border: 1px solid var(--line); border-radius: 14px;
-  padding: 20px 24px; box-shadow: 0 4px 18px rgba(20,30,50,0.06);
+  padding: 18px 24px; box-shadow: 0 4px 18px rgba(20,30,50,0.06);
 }
 .brand-logo { height: 44px; width: auto; flex-shrink: 0; }
 h1 {
@@ -60,24 +88,44 @@ h1 {
 .panel { display: none; }
 .panel.active { display: block; }
 
-#appLayout { display: flex; gap: 24px; align-items: flex-start; }
-#mainContent { flex: 1; min-width: 0; }
+/* App shell: sidebar + content share one elevated frame instead of
+   floating as two disconnected boxes - a single bordered/shadowed
+   container with the sidebar as an inset rail on the left. */
+#appLayout {
+  display: flex; align-items: stretch;
+  background: #fff; border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(18,79,65,0.06);
+  overflow: hidden;
+  min-height: calc(100vh - 200px);
+}
+#mainContent { flex: 1; min-width: 0; padding: 28px 32px 40px; }
+
+/* Panels that are single forms stay readable at a fixed max-width and
+   are centered, rather than left-aligned with dead space to the right;
+   data-dense panels (boards/tables) are left full-width by not having
+   this class, so wide screens actually get used for them. */
+#panel-submit .sheet, #panel-summary .sheet, #panel-assigntask .sheet { max-width: 760px; margin: 0 auto; }
 
 #adminSidebar {
-  flex-shrink: 0; width: 180px;
+  flex-shrink: 0; width: 216px;
   display: flex; flex-direction: column; gap: 2px;
-  background: #fff; border: 1px solid var(--line); border-radius: 10px;
-  padding: 14px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  background: var(--bg); border-right: 1px solid var(--line);
+  padding: 22px 14px;
 }
 .admin-sidebar-title {
   font-size: 11px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.05em; color: var(--muted); padding: 4px 10px 10px;
+  letter-spacing: 0.06em; color: var(--muted); padding: 4px 12px 12px;
 }
 #adminSidebar .tab {
-  padding: 9px 10px; border-radius: 6px; border-bottom: none;
-  white-space: normal;
+  padding: 10px 12px; border-radius: 8px; border-bottom: none;
+  white-space: normal; font-weight: 500;
+  transition: background 0.12s, color 0.12s;
 }
-#adminSidebar .tab.active { background: var(--accent-bg); color: var(--accent); }
+#adminSidebar .tab:hover { background: rgba(31,138,112,0.06); }
+#adminSidebar .tab.active {
+  background: var(--accent); color: #fff; font-weight: 600;
+  box-shadow: 0 2px 8px rgba(31,138,112,0.28);
+}
 
 /* ===========================================================
    Landing page — scoped tokens (WLYL brand teal/amber), kept
@@ -195,13 +243,10 @@ h1 {
 }
 .landing-setup-link a { color: var(--lp-teal); font-weight: 600; }
 
-.sheet {
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 28px 30px 34px;
-  box-shadow: 0 4px 18px rgba(18,79,65,0.05);
-}
+/* .sheet lives inside #mainContent, which is already inside the
+   elevated #appLayout shell - no border/shadow of its own, so panels
+   don't read as a card-within-a-card. */
+.sheet { padding: 0; }
 
 .meta-row { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
 .meta-field { flex: 1; min-width: 180px; }
@@ -257,35 +302,48 @@ button {
 .status { font-size: 12px; color: var(--muted); margin-top: 10px; min-height: 16px; }
 
 /* History / dashboard */
-.filter-row { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: end; }
+.filter-row {
+  display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; align-items: end;
+  padding: 14px 16px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+}
 .filter-field label {
-  display: block; font-size: 11px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px;
+  display: block; font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.03em; color: var(--muted); margin-bottom: 5px;
 }
 .filter-field select, .filter-field input {
-  padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px;
+  padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; background: #fff;
 }
 
 table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 24px; }
-th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
-th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
-tr:hover { background: #fafafa; }
+th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+thead tr { background: var(--bg); }
+th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; }
+tbody tr { transition: background 0.1s; }
+tbody tr:hover { background: var(--accent-bg); }
 .num { text-align: right; }
+.table-scroll {
+  border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+}
+.table-scroll table { margin-bottom: 0; }
+.table-scroll tr:last-child td { border-bottom: none; }
 
 .entry-card {
-  border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin-bottom: 14px;
-  background: #fff; box-shadow: 0 2px 10px rgba(18,79,65,0.04);
+  border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 14px;
+  background: #fff; box-shadow: 0 1px 3px rgba(18,79,65,0.05);
+  transition: border-color 0.12s, box-shadow 0.12s;
 }
-.entry-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
-.entry-name { font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 15px; }
-.entry-week { font-size: 12px; color: var(--muted); }
-.entry-block { margin-bottom: 8px; font-size: 13px; }
-.entry-block .label { font-size: 11px; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+.entry-card:hover { border-color: #d8d2c2; box-shadow: 0 4px 14px rgba(18,79,65,0.08); }
+.entry-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; gap: 12px; flex-wrap: wrap; }
+.entry-name { font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 15.5px; }
+.entry-week { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.entry-block { margin-bottom: 10px; font-size: 13px; }
+.entry-block .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); margin-bottom: 3px; }
 .entry-block.blocked {
-  background: var(--danger-bg); padding: 8px 10px; border-radius: 6px;
+  background: var(--danger-bg); padding: 10px 12px; border-radius: 8px;
   border-left: 3px solid var(--danger);
 }
 .entry-block pre { white-space: pre-wrap; font-family: inherit; margin: 0; }
-.empty { color: var(--muted); font-size: 13px; padding: 20px 0; text-align: center; }
+.empty { color: var(--muted); font-size: 13px; padding: 24px 0; text-align: center; }
 
 .ticket-link {
   font-family: monospace; color: var(--accent); font-weight: 700;
@@ -296,14 +354,15 @@ tr:hover { background: #fafafa; }
 .del-btn {
   background: none; border: none; color: var(--danger); font-size: 12px; cursor: pointer; padding: 2px 6px;
 }
-.summary-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+.summary-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
 .summary-card {
-  flex: 1; min-width: 130px; background: #fff; border: 1px solid var(--line);
-  box-shadow: 0 2px 10px rgba(18,79,65,0.04);
-  border-radius: 8px; padding: 12px 14px;
+  flex: 1; min-width: 130px; background: var(--bg); border: 1px solid var(--line);
+  border-radius: 10px; padding: 14px 16px;
+  transition: border-color 0.12s, transform 0.12s;
 }
-.summary-card .num-big { font-size: 20px; font-weight: 700; color: var(--accent); }
-.summary-card .cap { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+.summary-card:hover { border-color: var(--accent); }
+.summary-card .num-big { font-size: 24px; font-weight: 700; color: var(--accent-deep); line-height: 1.15; }
+.summary-card .cap { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 2px; }
 
 /* QA workflow */
 .qa-badge {
@@ -337,7 +396,7 @@ tr:hover { background: #fafafa; }
 .test-evidence-row:first-child { border-top: none; }
 
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 24px; }
-.table-scroll table { margin-bottom: 0; min-width: 640px; }
+.table-scroll table { min-width: 640px; }
 
 @media (max-width: 700px) {
   body { padding: 76px 12px 50px; }

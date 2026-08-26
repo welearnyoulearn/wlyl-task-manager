@@ -23,7 +23,10 @@ test.describe('Member sub-roles (Developer / Tester / Both)', () => {
     await page.locator('#adminSidebar').getByText('Assign Task').click();
     await page.locator('#taskAssignee').selectOption({ label: TEST_TESTER.username });
     await page.locator('#panel-assigntask input[placeholder*="staging environment"]').fill(title);
+    // Assigning now opens a confirmation Dialog before the actual insert
+    // (Step 6, item 13, Phase 5).
     await page.getByRole('button', { name: 'Assign Task' }).click();
+    await page.getByRole('button', { name: 'Confirm & Assign' }).click();
     await expect(page.locator('#assignTaskStatus')).toContainText('assigned to');
     await logout(page);
 
@@ -95,7 +98,10 @@ test.describe('Member sub-roles (Developer / Tester / Both)', () => {
     await page.locator('#adminSidebar').getByText('Assign Task').click();
     await page.locator('#taskAssignee').selectOption({ label: TEST_DEVELOPER.username });
     await page.locator('#panel-assigntask input[placeholder*="staging environment"]').fill(title);
+    // Assigning now opens a confirmation Dialog before the actual insert
+    // (Step 6, item 13, Phase 5).
     await page.getByRole('button', { name: 'Assign Task' }).click();
+    await page.getByRole('button', { name: 'Confirm & Assign' }).click();
     await expect(page.locator('#assignTaskStatus')).toContainText('assigned to');
     await logout(page);
 
@@ -105,7 +111,12 @@ test.describe('Member sub-roles (Developer / Tester / Both)', () => {
     await card.getByRole('button', { name: 'Accept Task' }).click();
     await card.locator('select').selectOption('Done');
     await expect(card.getByText('● Done')).toBeVisible();
+    // Mark Ready for QA now opens a mandatory test-plan Dialog before it
+    // actually flips qa_status (Phase 5 follow-up).
     await card.getByRole('button', { name: 'Mark Ready for QA' }).click();
+    const testPlanDialog = page.getByRole('dialog');
+    await testPlanDialog.locator('textarea').fill('Verify the happy path and one edge case.');
+    await testPlanDialog.getByRole('button', { name: 'Submit & Mark Ready for QA' }).click();
     await expect(card.getByText('QA: Ready for QA')).toBeVisible();
 
     // UI check: no Start QA button for a developer-only member, even

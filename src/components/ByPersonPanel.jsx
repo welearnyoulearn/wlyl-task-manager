@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useData } from '../context/DataContext.jsx';
 import EntryCard from './EntryCard.jsx';
 import TaskCard from './TaskCard.jsx';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
 
 export default function ByPersonPanel({ active }) {
   const { allEntries, allTasks, loadAllEntries, loadAllTasks } = useData();
@@ -40,15 +43,15 @@ export default function ByPersonPanel({ active }) {
       <div className="sheet" style={{ padding: 20 }}>
         <div className="filter-row" style={{ marginBottom: 0 }}>
           <div className="filter-field" style={{ flex: 1 }}>
-            <label>Select person</label>
-            <select value={person} onChange={(e) => setPerson(e.target.value)}>
+            <Label>Select person</Label>
+            <NativeSelect value={person} onChange={(e) => setPerson(e.target.value)}>
               <option value="">— choose —</option>
               {people.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
+            </NativeSelect>
           </div>
           <div className="filter-field">
-            <label style={{ visibility: 'hidden' }}>print</label>
-            <button className="btn-secondary" onClick={() => window.print()}>Print summary</button>
+            <Label style={{ visibility: 'hidden' }}>print</Label>
+            <Button variant="secondary" onClick={() => window.print()}>Print summary</Button>
           </div>
         </div>
       </div>

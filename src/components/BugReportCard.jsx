@@ -1,17 +1,21 @@
 import { sb } from '../lib/supabase.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useData } from '../context/DataContext.jsx';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
-const SEVERITY_CLASS = {
-  Blocker: 'severity-blocker',
-  Major: 'severity-major',
-  Minor: 'severity-minor',
-  Cosmetic: 'severity-cosmetic'
+const SEVERITY_VARIANT = {
+  Blocker: 'severityBlocker',
+  Major: 'severityMajor',
+  Minor: 'severityMinor',
+  Cosmetic: 'severityCosmetic'
 };
 
 export default function BugReportCard({ bug, task }) {
   const { currentUser, isAdmin } = useAuth();
   const { loadAllTasks } = useData();
+  const { toast } = useToast();
 
   const canResolve = !bug.resolved && (isAdmin || currentUser.toLowerCase() === task.assignee.toLowerCase());
 
@@ -23,8 +27,9 @@ export default function BugReportCard({ bug, task }) {
       }).eq('id', bug.key);
       if (error) throw error;
       await loadAllTasks();
+      toast({ description: 'Bug report marked resolved.' });
     } catch (e) {
-      alert('Could not mark resolved: ' + e.message);
+      toast({ variant: 'destructive', description: 'Could not mark resolved: ' + e.message });
     }
   };
 
@@ -32,7 +37,7 @@ export default function BugReportCard({ bug, task }) {
     <div className={`bug-report-card ${bug.resolved ? 'resolved' : ''}`}>
       <div className="bug-report-head">
         <span>
-          <span className={`severity-tag ${SEVERITY_CLASS[bug.severity] || ''}`}>{bug.severity}</span>
+          <Badge className="severity-tag" variant={SEVERITY_VARIANT[bug.severity] || 'severityMinor'}>{bug.severity}</Badge>
           {' '}
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>
             {bug.reportedBy} &middot; {new Date(bug.createdAt).toLocaleString()}
@@ -40,7 +45,7 @@ export default function BugReportCard({ bug, task }) {
           </span>
         </span>
         {canResolve && (
-          <button className="btn-secondary" style={{ padding: '4px 10px', fontSize: 12 }} onClick={markResolved}>Mark Resolved</button>
+          <Button variant="secondary" size="sm" onClick={markResolved}>Mark Resolved</Button>
         )}
       </div>
       <div className="entry-block">

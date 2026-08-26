@@ -1,13 +1,21 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 function LoginBox({ role, title, icon, hint, open, onToggle, onOpenSetup }) {
   const { attemptLogin } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
+  // Login failure surfaces as inline text under the form (item 20) - not
+  // a silent no-op. attemptLogin's error string comes straight from
+  // Supabase Auth ("Invalid login credentials" etc.), shown as-is.
   const submit = async () => {
+    setSubmitting(true);
     const { error } = await attemptLogin(username, password, role === 'admin');
     if (error) {
       setStatus(error);
@@ -16,6 +24,7 @@ function LoginBox({ role, title, icon, hint, open, onToggle, onOpenSetup }) {
       setUsername('');
       setPassword('');
     }
+    setSubmitting(false);
   };
 
   return (
@@ -31,8 +40,8 @@ function LoginBox({ role, title, icon, hint, open, onToggle, onOpenSetup }) {
       {open && (
         <div className="landing-login-fields">
           <div className="meta-field" style={{ marginBottom: 10, textAlign: 'left' }}>
-            <label>{role === 'admin' ? 'Admin username' : 'Username'}</label>
-            <input
+            <Label>{role === 'admin' ? 'Admin username' : 'Username'}</Label>
+            <Input
               type="text"
               placeholder={role === 'admin' ? 'Enter your admin username' : 'Enter your username'}
               value={username}
@@ -41,8 +50,8 @@ function LoginBox({ role, title, icon, hint, open, onToggle, onOpenSetup }) {
             />
           </div>
           <div className="meta-field" style={{ marginBottom: 14, textAlign: 'left' }}>
-            <label>Password</label>
-            <input
+            <Label>Password</Label>
+            <Input
               type="password"
               placeholder="Password"
               value={password}
@@ -50,10 +59,10 @@ function LoginBox({ role, title, icon, hint, open, onToggle, onOpenSetup }) {
               onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
             />
           </div>
-          <button className="btn-primary" style={{ width: '100%' }} onClick={submit}>
+          <Button style={{ width: '100%' }} onClick={submit} disabled={submitting}>
             Sign in as {title}
-          </button>
-          <div className="status">{status}</div>
+          </Button>
+          {status && <div className="text-sm text-destructive mt-2">{status}</div>}
         </div>
       )}
     </div>

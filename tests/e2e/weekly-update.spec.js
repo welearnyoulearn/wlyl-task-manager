@@ -3,59 +3,76 @@ import { TEST_MEMBER, requireTestAccounts, loginFromLanding, logout } from './he
 
 test.beforeAll(requireTestAccounts);
 
-test.describe('Weekly update submission', () => {
-  test('member submits an update without a linked ticket', async ({ page }) => {
+// Submit Update and Weekly Summary are two independent tabs/save paths
+// (Phase 5 follow-up, after the initial Part A build): Submit Update
+// shows auto-detected ticket activity with a per-ticket note + Post
+// button that saves immediately, one ticket at a time; Weekly Summary
+// covers Hours/Learned/Blocked/Next Week with its own confirm-then-submit
+// flow, entirely independent of ticket notes.
+test.describe('Weekly Summary submission', () => {
+  test('member submits a weekly summary with no narrative text (minimal submission)', async ({ page }) => {
     await loginFromLanding(page, 'member', TEST_MEMBER);
+    await page.locator('#tabBar').getByText('Weekly Summary').click();
 
-    const completedText = `Completed E2E item ${Date.now()}`;
-    await page.locator('#panel-submit textarea').first().fill(completedText);
+    const nextWeekText = `Next week E2E item ${Date.now()}`;
+    await page.locator('#panel-summary textarea').nth(2).fill(nextWeekText); // Learned, Blocked, Next week
     await page.getByRole('button', { name: 'Submit Update' }).click();
-    await expect(page.locator('#panel-submit .status')).toContainText('Submitted');
+    await page.getByRole('button', { name: 'Confirm & Submit' }).click();
+    await expect(page.locator('#panel-summary .status')).toContainText('Submitted');
 
     await page.locator('#tabBar').getByText('My History').click();
-    await expect(page.locator('#mineEntries')).toContainText(completedText);
-
-    await logout(page);
-  });
-
-  test('member submits an update with a linked ticket on the Completed section', async ({ page }) => {
-    await loginFromLanding(page, 'member', TEST_MEMBER);
-
-    const select = page.locator('#panel-submit select').first();
-    const optionCount = await select.locator('option').count();
-    test.skip(optionCount <= 1, 'Member has no accepted tickets to link — run task-assignment.spec.js first.');
-
-    const completedText = `Completed with ticket E2E ${Date.now()}`;
-    await page.locator('#panel-submit textarea').first().fill(completedText);
-    await select.selectOption({ index: 1 });
-    const chosenTicketId = await select.inputValue();
-
-    await page.getByRole('button', { name: 'Submit Update' }).click();
-    await expect(page.locator('#panel-submit .status')).toContainText('Submitted');
-
-    await page.locator('#tabBar').getByText('My History').click();
-    const entry = page.locator('#mineEntries .entry-card', { hasText: completedText });
-    await expect(entry.getByText(`[${chosenTicketId}]`)).toBeVisible();
+    await expect(page.locator('#mineEntries')).toContainText(nextWeekText);
 
     await logout(page);
   });
 
   test('resubmitting the same week upserts instead of duplicating', async ({ page }) => {
     await loginFromLanding(page, 'member', TEST_MEMBER);
+    await page.locator('#tabBar').getByText('Weekly Summary').click();
 
     const firstText = `Upsert check A ${Date.now()}`;
-    await page.locator('#panel-submit textarea').first().fill(firstText);
+    await page.locator('#panel-summary textarea').nth(2).fill(firstText);
     await page.getByRole('button', { name: 'Submit Update' }).click();
-    await expect(page.locator('#panel-submit .status')).toContainText('Submitted');
+    await page.getByRole('button', { name: 'Confirm & Submit' }).click();
+    await expect(page.locator('#panel-summary .status')).toContainText('Submitted');
 
     const secondText = `Upsert check B ${Date.now()}`;
-    await page.locator('#panel-submit textarea').first().fill(secondText);
+    await page.locator('#panel-summary textarea').nth(2).fill(secondText);
     await page.getByRole('button', { name: 'Submit Update' }).click();
-    await expect(page.locator('#panel-submit .status')).toContainText('Submitted');
+    await page.getByRole('button', { name: 'Confirm & Submit' }).click();
+    await expect(page.locator('#panel-summary .status')).toContainText('Submitted');
 
     await page.locator('#tabBar').getByText('My History').click();
     await expect(page.locator('#mineEntries')).toContainText(secondText);
     await expect(page.locator('#mineEntries')).not.toContainText(firstText);
+
+    await logout(page);
+  });
+});
+
+test.describe('Submit Update: per-ticket activity notes', () => {
+  test('zero ticket activity shows the "no activity" state, not a blank gap', async ({ page }) => {
+    await loginFromLanding(page, 'member', TEST_MEMBER);
+    // A week far in the past should have no ticket activity for anyone.
+    await page.locator('#panel-submit input[type="date"]').fill('2020-01-06');
+    await expect(page.locator('#panel-submit').getByText('No ticket activity detected this week.')).toBeVisible();
+    await logout(page);
+  });
+
+  test('posting a note on a detected ticket saves it immediately and shows a posted state', async ({ page }) => {
+    await loginFromLanding(page, 'member', TEST_MEMBER);
+
+    const firstTicketBlock = page.locator('#panel-submit .entry-block').first();
+    test.skip((await firstTicketBlock.count()) === 0, 'Member has no detected ticket activity this week — run task-assignment.spec.js first.');
+
+    const noteText = `Note E2E ${Date.now()}`;
+    await firstTicketBlock.getByPlaceholder('Add a note (optional)').fill(noteText);
+    await firstTicketBlock.getByRole('button', { name: 'Post' }).click();
+    await expect(firstTicketBlock.getByRole('button', { name: /Posted/ })).toBeVisible();
+
+    await page.locator('#tabBar').getByText('My History').click();
+    const entry = page.locator('#mineEntries .entry-card').first();
+    await expect(entry).toContainText(noteText);
 
     await logout(page);
   });

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { sb } from '../lib/supabase.js';
+import { useToast } from '@/hooks/use-toast';
+import { NativeSelect } from '@/components/ui/native-select';
 
 const ROLE_OPTIONS = [
   { value: 'developer', label: 'Developer' },
@@ -13,6 +15,7 @@ const ROLE_OPTIONS = [
 // service-role path those already use.
 export default function MemberRoleCell({ profileId, memberRole, onChanged }) {
   const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
 
   const changeRole = async (value) => {
     setSaving(true);
@@ -20,8 +23,9 @@ export default function MemberRoleCell({ profileId, memberRole, onChanged }) {
       const { error } = await sb.from('profiles').update({ member_role: value }).eq('id', profileId);
       if (error) throw error;
       onChanged && onChanged();
+      toast({ description: 'Role updated.' });
     } catch (e) {
-      alert('Could not update role: ' + e.message);
+      toast({ variant: 'destructive', description: 'Could not update role: ' + e.message });
     } finally {
       setSaving(false);
     }
@@ -29,14 +33,14 @@ export default function MemberRoleCell({ profileId, memberRole, onChanged }) {
 
   return (
     <td>
-      <select
+      <NativeSelect
+        className="h-auto w-auto py-1 px-2 text-xs"
         value={memberRole || 'both'}
         disabled={saving}
         onChange={(e) => changeRole(e.target.value)}
-        style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--line)', borderRadius: 6 }}
       >
         {ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
+      </NativeSelect>
     </td>
   );
 }

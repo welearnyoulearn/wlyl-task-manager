@@ -8,6 +8,7 @@ import Landing from './components/Landing.jsx';
 import TabBar from './components/TabBar.jsx';
 import AdminSidebar from './components/AdminSidebar.jsx';
 import SubmitUpdateForm from './components/SubmitUpdateForm.jsx';
+import WeeklySummaryForm from './components/WeeklySummaryForm.jsx';
 import MyTasksPanel from './components/MyTasksPanel.jsx';
 import MyHistoryPanel from './components/MyHistoryPanel.jsx';
 import HistoryPanel from './components/HistoryPanel.jsx';
@@ -17,6 +18,7 @@ import TasksBoardPanel from './components/TasksBoardPanel.jsx';
 import AssignTaskPanel from './components/AssignTaskPanel.jsx';
 import ManageAdminsPanel from './components/ManageAdminsPanel.jsx';
 import ManageMembersPanel from './components/ManageMembersPanel.jsx';
+import { Toaster } from './components/ui/toaster.jsx';
 
 const ADMIN_ONLY_TABS = new Set(['history', 'byperson', 'manageadmins', 'tasksboard', 'assigntask', 'managemembers']);
 
@@ -62,12 +64,13 @@ export default function App() {
         {!currentUser ? (
           <Landing onOpenSetup={() => setAuthModalOpen(true)} />
         ) : (
-          <div id="appLayout" style={{ display: 'flex' }}>
+          <div id="appLayout">
             {isAdmin && <AdminSidebar activeTab={activeTab} onSelect={selectTab} />}
             <div id="mainContent">
               <TabBar activeTab={activeTab} onSelect={selectTab} />
 
               <SubmitUpdateForm active={activeTab === 'submit'} />
+              <WeeklySummaryForm active={activeTab === 'summary'} />
               <MyTasksPanel active={activeTab === 'mytasks'} />
               <MyHistoryPanel active={activeTab === 'mine'} />
               {isAdmin && <HistoryPanel active={activeTab === 'history'} />}
@@ -81,6 +84,7 @@ export default function App() {
           </div>
         )}
       </div>
+      <Toaster />
     </TicketDetailProvider>
   );
 }

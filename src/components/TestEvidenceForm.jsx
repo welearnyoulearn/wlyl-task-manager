@@ -2,23 +2,32 @@ import { useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useData } from '../context/DataContext.jsx';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export default function TestEvidenceForm({ task, onClose }) {
   const { currentUser, currentUserId } = useAuth();
   const { loadAllTasks } = useData();
+  const { toast } = useToast();
 
   const [runUrl, setRunUrl] = useState('');
   const [passedCount, setPassedCount] = useState('');
   const [failedCount, setFailedCount] = useState('');
   const [notes, setNotes] = useState('');
+  const [fieldError, setFieldError] = useState('');
   const [status, setStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async () => {
     if (!runUrl.trim()) {
-      setStatus('A CI/trace URL is required.');
+      setFieldError('A CI/trace URL is required.');
       return;
     }
+    setFieldError('');
     const passed = passedCount === '' ? 0 : Number(passedCount);
     const failed = failedCount === '' ? 0 : Number(failedCount);
     if (!Number.isFinite(passed) || passed < 0 || !Number.isFinite(failed) || failed < 0) {
@@ -38,6 +47,7 @@ export default function TestEvidenceForm({ task, onClose }) {
       });
       if (error) throw error;
       await loadAllTasks();
+      toast({ description: `Test evidence attached to ${task.ticketId}.` });
       onClose();
     } catch (e) {
       setStatus('Could not attach test run: ' + e.message);
@@ -46,31 +56,39 @@ export default function TestEvidenceForm({ task, onClose }) {
   };
 
   return (
-    <div className="entry-block" style={{ marginTop: 10, background: 'var(--accent-bg)', padding: '10px 12px', borderRadius: 6, borderLeft: '3px solid var(--accent)' }}>
-      <div className="label">Attach test run</div>
-      <div className="meta-field" style={{ marginBottom: 8, maxWidth: 420 }}>
-        <label>CI / trace URL</label>
-        <input type="text" value={runUrl} onChange={(e) => setRunUrl(e.target.value)} placeholder="https://github.com/.../actions/runs/..." />
-      </div>
-      <div className="meta-row">
-        <div className="meta-field">
-          <label>Passed</label>
-          <input type="number" value={passedCount} onChange={(e) => setPassedCount(e.target.value)} placeholder="0" />
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Attach test run</DialogTitle>
+          <DialogDescription>{task.ticketId} — {task.title}</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3">
+          <div>
+            <Label>CI / trace URL</Label>
+            <Input type="text" value={runUrl} onChange={(e) => setRunUrl(e.target.value)} placeholder="https://github.com/.../actions/runs/..." />
+            {fieldError && <div className="text-xs text-destructive mt-1">{fieldError}</div>}
+          </div>
+          <div className="meta-row">
+            <div className="meta-field">
+              <Label>Passed</Label>
+              <Input type="number" value={passedCount} onChange={(e) => setPassedCount(e.target.value)} placeholder="0" />
+            </div>
+            <div className="meta-field">
+              <Label>Failed</Label>
+              <Input type="number" value={failedCount} onChange={(e) => setFailedCount(e.target.value)} placeholder="0" />
+            </div>
+          </div>
+          <div>
+            <Label>Notes (optional)</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
         </div>
-        <div className="meta-field">
-          <label>Failed</label>
-          <input type="number" value={failedCount} onChange={(e) => setFailedCount(e.target.value)} placeholder="0" />
-        </div>
-      </div>
-      <div className="meta-field" style={{ marginBottom: 8 }}>
-        <label>Notes (optional)</label>
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
-      </div>
-      <div className="actions" style={{ marginTop: 12 }}>
-        <button className="btn-primary" onClick={submit} disabled={submitting}>Attach</button>
-        <button className="btn-secondary" onClick={onClose} disabled={submitting}>Cancel</button>
-      </div>
-      {status && <div className="status">{status}</div>}
-    </div>
+        {status && <div className="text-sm text-destructive">{status}</div>}
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} disabled={submitting}>Cancel</Button>
+          <Button onClick={submit} disabled={submitting}>Attach</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

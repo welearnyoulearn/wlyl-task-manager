@@ -53,7 +53,7 @@ export async function loginFromLanding(page, role, { username, password }) {
 }
 
 export async function logout(page) {
-  await page.getByText('sign out').click();
+  await page.getByText(/sign out/i).click();
   await page.waitForSelector('#landingPanel', { state: 'visible' });
 }
 

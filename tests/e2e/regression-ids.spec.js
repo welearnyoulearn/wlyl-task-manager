@@ -47,18 +47,20 @@ test.describe('Regression: dropped ids restored in the dropped-ids-cleanup pass'
     await expect(usernameInput).toBeFocused();
   });
 
-  test('opening a password-change row moves focus to the new-password field', async ({ page }) => {
+  test('opening the password-change dialog moves focus to the new-password field', async ({ page }) => {
     // Same focus-management regression risk as above, for
     // PasswordChangeCell.jsx (originally pwInput_${safeId}.focus() in
-    // state.js). Exercised here against the Manage Members table since
-    // it doesn't require creating any data - just an admin login.
+    // state.js, later an inline row, now a Dialog as of the Phase 5
+    // shadcn migration - the field itself renders in a portal outside
+    // the table, not inside the row, so this looks up the dialog
+    // directly rather than scoping to the row).
     requireTestAccounts();
     await loginFromLanding(page, 'admin', TEST_ADMIN);
     await page.locator('#adminSidebar').getByText('Manage Members').click();
 
     const row = page.locator('#memberListBody tr').first();
     test.skip((await row.count()) === 0, 'No members exist to exercise a password-change row.');
-    await row.getByRole('button', { name: 'change password' }).click();
-    await expect(row.getByPlaceholder('New password')).toBeFocused();
+    await row.getByRole('button', { name: 'Change password' }).click();
+    await expect(page.getByPlaceholder('New password')).toBeFocused();
   });
 });

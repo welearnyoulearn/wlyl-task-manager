@@ -50,11 +50,11 @@ Every ticket has a second, independent status — `qa_status` — that tracks QA
 The state machine and who can trigger each transition:
 
 - **Mark Ready for QA** (`Not Ready` or `Failed` → `Ready for QA`) — only enabled once dev `status` is `Done`, and only for the assignee if they're `developer`/`both` (or an admin). This is what lets a ticket re-enter the QA queue after a fix, since `Failed` isn't a dead end.
-- **Start QA** (`Ready for QA` → `In QA`) — any `tester`/`both` member (or admin) — see 3a — **unless an admin has routed this specific ticket to someone via Assign QA** (below), in which case only that person (or an admin) can start it.
+- **Start QA** (`Ready for QA` → `In QA`) — only actionable by the tester an admin explicitly routed the ticket to via Assign QA (below), or an admin. There is no self-pick: a ticket sitting at `Ready for QA` with no `qa_assignee` set shows no Start QA button to anyone, qualified or not — it's marked `QA: unassigned` until an admin assigns it.
 - **Pass QA** (`In QA` → `Passed`) — also force-advances dev `status` to `Done` if it somehow isn't already, so a passed ticket is never left showing an incomplete dev status.
 - **Fail QA** (`In QA` → `Failed`) — opens the bug report form inline; submitting it both logs the bug and flips `qa_status` to `Failed` in one action. `qa_status` never changes without a bug report attached when failing this way.
 
-**Assign QA** (admin-only, visible on tickets with `qa_status = 'Ready for QA'`): lets an admin route a ticket to one specific qualified tester (`tester`/`both` member), picked from a dropdown, independently of the dev assignee. This is `tasks.qa_assignee` — a separate field from the dev `assignee`. If set, only that person (or an admin) can Start QA on the ticket; if left unset (the default), any qualified tester can self-pick it, preserving the original behavior. When set, the ticket shows a `QA: <username>` label next to the dev assignee label, and appears in that tester's **My Tasks** even if they aren't the dev assignee.
+**Assign QA** (admin-only, required, visible on tickets with `qa_status = 'Ready for QA'`): an admin must route every Ready-for-QA ticket to one specific qualified tester (`tester`/`both` member) via a dropdown, independently of the dev assignee. This is `tasks.qa_assignee` — a separate field from the dev `assignee`. Assignment is mandatory, not optional — there is no self-pick fallback: until an admin assigns someone, the ticket shows a red `QA: unassigned` flag and Start QA is unavailable to everyone, including a fully qualified tester who happens to be the dev assignee. Once assigned, only that person (or an admin) can Start QA. The ticket shows a `QA: <username>` label next to the dev assignee label, and appears in that tester's **My Tasks** even if they aren't the dev assignee.
 
 Independently of that flow, anyone can also:
 - **Report Bug** — log a bug against a ticket at any time, without going through "Fail QA" (doesn't change `qa_status`).
@@ -70,9 +70,10 @@ Every ticket also tracks `updated_at`, bumped automatically by a database trigge
 
 ### 4. Member submits a weekly report
 
-- **Submit Update**: one form per person per week — Completed, In Progress, category hours (Dev/Research/Testing/Docs), Learned, Blocked, Next Week.
-- Each of the Completed/In Progress sections has an **optional** ticket dropdown (only showing that member's own accepted tickets). Linking a ticket is not required — a report with no ticket selected is still a fully valid submission.
-- Submitting **upserts** one row per `(name, week)` — resubmitting the same week edits the existing report instead of creating a duplicate.
+- **Submit Update** (auto-detected ticket activity) and **Weekly Summary** (hours + narrative) are two separate tabs, saved independently:
+  - **Submit Update** shows every ticket the member touched that week — auto-detected, not manually picked — with an optional note per ticket. Each ticket has its own **Post** button that saves just that ticket's note immediately; there's no single "submit everything" action here.
+  - **Weekly Summary** covers category hours (Dev/Research/Testing/Docs), Learned, Blocked, Next Week — one form per person per week, with a confirmation dialog before it saves. Submitting **upserts** one row per `(name, week)` — resubmitting the same week edits the existing report instead of creating a duplicate.
+- Posting a ticket note before ever visiting Weekly Summary is fine — a placeholder `weekly_updates` row is created automatically so the note has somewhere to attach to; Weekly Summary later fills in the actual hours/narrative on that same row.
 
 ### 5. Admin reviews everything
 

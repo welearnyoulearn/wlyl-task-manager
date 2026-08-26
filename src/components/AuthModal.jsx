@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProfiles } from '../context/ProfilesContext.jsx';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 export default function AuthModal({ open, onClose }) {
   const { attemptLogin, createFirstAdmin, loadProfiles } = useAuth();
@@ -54,33 +58,33 @@ export default function AuthModal({ open, onClose }) {
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>First-time setup</div>
             <div className="section-hint" style={{ marginBottom: 14 }}>No admins are configured yet. Create the first admin account.</div>
             <div className="meta-field" style={{ marginBottom: 10 }}>
-              <label>Admin name</label>
-              <input type="text" placeholder="e.g. sumanth" value={setupName} onChange={(e) => setSetupName(e.target.value)} />
+              <Label>Admin name</Label>
+              <Input type="text" placeholder="e.g. sumanth" value={setupName} onChange={(e) => setSetupName(e.target.value)} />
             </div>
             <div className="meta-field" style={{ marginBottom: 14 }}>
-              <label>Set password</label>
-              <input type="password" placeholder="Choose a password" value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} />
+              <Label>Set password</Label>
+              <Input type="password" placeholder="Choose a password" value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} />
             </div>
-            <button className="btn-primary" style={{ width: '100%' }} onClick={handleCreateFirstAdmin}>Create Admin</button>
-            <div className="status">{setupStatus}</div>
+            <Button style={{ width: '100%' }} onClick={handleCreateFirstAdmin}>Create Admin</Button>
+            {setupStatus && <div className="text-sm text-destructive mt-2">{setupStatus}</div>}
           </div>
         ) : (
           <div>
             <div className="tabs" style={{ borderBottom: '1px solid var(--line)', marginBottom: 16 }}>
-              <div className={`tab ${loginMode === 'member' ? 'active' : ''}`} onClick={() => { setLoginMode('member'); setLoginStatus(''); }}>Member</div>
-              <div className={`tab ${loginMode === 'admin' ? 'active' : ''}`} onClick={() => { setLoginMode('admin'); setLoginStatus(''); }}>Admin</div>
+              <div className={cn('tab', loginMode === 'member' && 'active')} onClick={() => { setLoginMode('member'); setLoginStatus(''); }}>Member</div>
+              <div className={cn('tab', loginMode === 'admin' && 'active')} onClick={() => { setLoginMode('admin'); setLoginStatus(''); }}>Admin</div>
             </div>
 
             <div className="meta-field" style={{ marginBottom: 12 }}>
-              <label>{loginMode === 'admin' ? 'Admin username' : 'Username'}</label>
-              <input type="text" placeholder="Enter your username" value={whoAmI} onChange={(e) => setWhoAmI(e.target.value)} />
+              <Label>{loginMode === 'admin' ? 'Admin username' : 'Username'}</Label>
+              <Input type="text" placeholder="Enter your username" value={whoAmI} onChange={(e) => setWhoAmI(e.target.value)} />
             </div>
             <div className="meta-field" style={{ marginBottom: 14 }}>
-              <label>{loginMode === 'admin' ? 'Admin password' : 'Password'}</label>
-              <input type="password" placeholder="Password" value={whoAmIPassword} onChange={(e) => setWhoAmIPassword(e.target.value)} />
+              <Label>{loginMode === 'admin' ? 'Admin password' : 'Password'}</Label>
+              <Input type="password" placeholder="Password" value={whoAmIPassword} onChange={(e) => setWhoAmIPassword(e.target.value)} />
             </div>
-            <button className="btn-primary" style={{ width: '100%' }} onClick={handleLogin}>Continue</button>
-            <div className="status">{loginStatus}</div>
+            <Button style={{ width: '100%' }} onClick={handleLogin}>Continue</Button>
+            {loginStatus && <div className="text-sm text-destructive mt-2">{loginStatus}</div>}
           </div>
         )}
       </div>

@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useData } from '../context/DataContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import TaskCard from './TaskCard.jsx';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
 
 const STATUS_FILTER_OPTIONS = [
   { value: '', label: 'All' },
@@ -33,6 +37,14 @@ export default function TasksBoardPanel({ active }) {
   const [statusFilter, setStatusFilter] = useState('');
   const [qaStatusFilter, setQaStatusFilter] = useState('');
   const [sortBy, setSortBy] = useState('created');
+  const [search, setSearch] = useState('');
+  // Passed (QA-verified) tickets are hidden by default - the board's
+  // job is "what's active right now," not a full archive. An explicit
+  // filter pick (status/qaStatus) or search always overrides this, and
+  // the toggle lets an admin see everything when they actually want the
+  // history. Failed tickets stay visible by default since they're often
+  // still awaiting a fix/re-submission, not truly done.
+  const [showCompleted, setShowCompleted] = useState(false);
 
   useEffect(() => {
     if (active) {
@@ -52,16 +64,23 @@ export default function TasksBoardPanel({ active }) {
 
   const filtered = useMemo(() => {
     let f = allTasks;
+    if (!showCompleted && !statusFilter && !qaStatusFilter) {
+      f = f.filter(t => t.qaStatus !== 'Passed');
+    }
     if (personFilter) f = f.filter(t => t.assignee === personFilter);
     if (statusFilter) f = f.filter(t => t.status === statusFilter);
     if (qaStatusFilter) f = f.filter(t => (t.qaStatus || 'Not Ready') === qaStatusFilter);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      f = f.filter(t => t.ticketId?.toLowerCase().includes(q) || t.title?.toLowerCase().includes(q));
+    }
     if (sortBy === 'updated') {
       f = [...f].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
     }
     // 'created' needs no explicit sort: allTasks already arrives ordered
     // by created_at desc from loadAllTasks, and filtering preserves order.
     return f;
-  }, [allTasks, personFilter, statusFilter, qaStatusFilter, sortBy]);
+  }, [allTasks, personFilter, statusFilter, qaStatusFilter, sortBy, search, showCompleted]);
 
   const counts = useMemo(() => ({
     total: filtered.length,
@@ -98,34 +117,52 @@ export default function TasksBoardPanel({ active }) {
         <div className="summary-card"><div className="num-big">{qaCounts.failed}</div><div className="cap">QA: Failed</div></div>
       </div>
       <div className="filter-row">
+        <div className="filter-field" style={{ minWidth: 200 }}>
+          <Label>Search</Label>
+          <Input
+            type="text"
+            placeholder="Ticket ID or title..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
         <div className="filter-field">
-          <label>Person</label>
-          <select value={personFilter} onChange={(e) => setPersonFilter(e.target.value)}>
+          <Label>Person</Label>
+          <NativeSelect value={personFilter} onChange={(e) => setPersonFilter(e.target.value)}>
             <option value="">All</option>
             {people.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
+          </NativeSelect>
         </div>
         <div className="filter-field">
-          <label>Status</label>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <Label>Status</Label>
+          <NativeSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             {STATUS_FILTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          </NativeSelect>
         </div>
         <div className="filter-field">
-          <label>QA Status</label>
-          <select value={qaStatusFilter} onChange={(e) => setQaStatusFilter(e.target.value)}>
+          <Label>QA Status</Label>
+          <NativeSelect value={qaStatusFilter} onChange={(e) => setQaStatusFilter(e.target.value)}>
             {QA_STATUS_FILTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          </NativeSelect>
         </div>
         <div className="filter-field">
-          <label>Sort by</label>
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+          <Label>Sort by</Label>
+          <NativeSelect value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
             {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          </NativeSelect>
         </div>
         <div className="filter-field">
-          <label style={{ visibility: 'hidden' }}>go</label>
-          <button className="btn-secondary" onClick={loadAllTasks}>Refresh</button>
+          <Label style={{ visibility: 'hidden' }}>show</Label>
+          <Button
+            variant={showCompleted ? 'secondary' : 'outline'}
+            onClick={() => setShowCompleted(s => !s)}
+          >
+            {showCompleted ? 'Hide completed' : 'Show completed'}
+          </Button>
+        </div>
+        <div className="filter-field">
+          <Label style={{ visibility: 'hidden' }}>go</Label>
+          <Button variant="secondary" onClick={loadAllTasks}>Refresh</Button>
         </div>
       </div>
       <div id="tasksBoardList">

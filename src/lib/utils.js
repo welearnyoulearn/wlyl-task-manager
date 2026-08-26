@@ -1,3 +1,11 @@
+import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+// ---------- Tailwind/shadcn class merging ----------
+export function cn(...inputs) {
+  return twMerge(clsx(inputs));
+}
+
 // ---------- ISO week number ----------
 export function getISOWeek(dateStr) {
   if (!dateStr) return null;
@@ -16,6 +24,22 @@ export function formatWeekLabel(dateStr) {
   const info = getISOWeek(dateStr);
   if (!info) return '';
   return `Week ${info.week}, ${info.year}`;
+}
+
+// ---------- Week date range (Mon-Sun containing dateStr) ----------
+// Used to bound the auto-detected weekly-activity query - "this week"
+// means the ISO week (Monday-Sunday) containing the selected "Week of" date.
+export function getWeekRange(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  const dayNr = (d.getDay() + 6) % 7; // Mon=0..Sun=6
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - dayNr);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmt = (x) => `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}`;
+  return { start: fmt(monday), end: fmt(sunday) };
 }
 
 // ---------- Relative time ----------

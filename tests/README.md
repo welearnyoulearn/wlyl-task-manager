@@ -57,7 +57,7 @@ locally (not in CI).
 | `regression-ids.spec.js` | Dropped-`id` regressions from the React migration (styling hooks, focus behavior) |
 | `rls-negative.spec.js` | Direct-API negative-path checks: non-admin can't insert a task, member can't edit another's weekly report |
 | `member-roles.spec.js` | A `tester`-role assignee can't make dev-status changes, a `developer`-role assignee can't do QA actions — UI-hidden + direct-API negative path for both |
-| `qa-assignment.spec.js` | Admin routes QA to a specific tester via Assign QA; that tester can Start QA and a different tester cannot (direct-API negative path); self-pick still works when unassigned |
+| `qa-assignment.spec.js` | Admin routes QA to a specific tester via Assign QA; that tester can Start QA and a different tester cannot (direct-API negative path); an unassigned ticket blocks Start QA for everyone, including a qualified self-assignee (self-pick was removed — QA assignment is mandatory as of the Phase 5 follow-up) |
 
 Tests run in a fixed order within a spec (`workers: 1`,
 `fullyParallel: false`) because they share the same two live accounts
