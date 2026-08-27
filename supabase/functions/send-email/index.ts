@@ -1,6 +1,15 @@
-// Edge Function: send transactional email via Zoho Mail SMTP.
-// Runs with the Zoho app-specific password server-side, never exposed
-// to the client. Deploy: supabase functions deploy send-email
+// Edge Function: send transactional email via Resend's HTTP API.
+// Runs with the Resend API key server-side, never exposed to the
+// client. Deploy: supabase functions deploy send-email
+//
+// Switched from Zoho Mail SMTP after two blockers: (1) Supabase Edge
+// Functions block outbound connections on ports 25/587, and (2) even
+// after moving to port 465, Zoho rejected auth (535) because the
+// account is on Zoho's free plan, which doesn't grant SMTP/IMAP app
+// access at all - confirmed via a screenshot of Zoho's own mail
+// settings showing "This feature is not available for your account"
+// on IMAP. Resend sends over plain HTTPS (no SMTP, no port
+// restriction) and needs no paid plan for this volume.
 //
 // Generic sender, not tied to one notification type - task-assigned
 // emails call it directly from the client (see src/lib/email.js); the
@@ -10,13 +19,17 @@
 // asked"; it's not itself a privileged action, just a mail relay.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-const ZOHO_SMTP_USER = Deno.env.get('ZOHO_SMTP_USER')!; // e.g. admin@welearnyoulearn.com
-const ZOHO_SMTP_PASSWORD = Deno.env.get('ZOHO_SMTP_PASSWORD')!; // app-specific password, not the account login password
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!;
+// Resend's shared test sender - works with zero domain setup, but
+// Resend restricts it to sending only to the email address on the
+// Resend account itself until a custom domain is verified. Swap to a
+// verified @welearnyoulearn.com address (via RESEND_FROM secret) once
+// that's set up - see NOTES.md.
+const RESEND_FROM = Deno.env.get('RESEND_FROM') || 'WLYL Hub <onboarding@resend.dev>';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -65,27 +78,27 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'to, subject, and html or text are required' }, 400);
   }
 
-  const client = new SMTPClient({
-    connection: {
-      hostname: 'smtp.zoho.com',
-      port: 587,
-      tls: false, // STARTTLS
-      auth: { username: ZOHO_SMTP_USER, password: ZOHO_SMTP_PASSWORD }
-    }
-  });
-
   try {
-    await client.send({
-      from: `WLYL Hub <${ZOHO_SMTP_USER}>`,
-      to,
-      subject,
-      content: text || 'This email requires an HTML-capable client to view.',
-      html: html || undefined
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${RESEND_API_KEY}`
+      },
+      body: JSON.stringify({
+        from: RESEND_FROM,
+        to: [to],
+        subject,
+        html: html || undefined,
+        text: text || undefined
+      })
     });
-    await client.close();
-    return jsonResponse({ ok: true }, 200);
+    const resendBody = await res.json();
+    if (!res.ok) {
+      return jsonResponse({ error: resendBody.message || 'Resend request failed' }, 500);
+    }
+    return jsonResponse({ ok: true, id: resendBody.id }, 200);
   } catch (e) {
-    try { await client.close(); } catch { /* already closed/failed */ }
     return jsonResponse({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
 });

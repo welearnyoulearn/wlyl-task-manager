@@ -992,3 +992,90 @@ person sees it; the URL underneath is unchanged.
   `018_due_date_reminder_cron.sql` (not yet confirmed run).
 - Not yet end-to-end verified with a real send, since the SMTP secrets
   aren't set yet - only build-checked so far.
+
+---
+
+# Phase 5 follow-up 6 — switched email sending from Zoho SMTP to Resend
+
+## 42. Zoho SMTP hit two real blockers, both confirmed with live tests
+
+1. **Supabase Edge Functions block outbound port 587** entirely
+   (confirmed via Supabase's own docs: "Outgoing connections to ports
+   25 and 587 are not allowed") - the original `send-email` function
+   using `denomailer` over STARTTLS/587 returned a bare 503 with no
+   body, which is consistent with a blocked connection rather than an
+   application error. Switched to port 465 (implicit TLS) first, which
+   is not in the blocked list, and that got past the connection stage.
+2. Even on port 465, Zoho rejected authentication with `535:
+   Authentication Failed`, on every app-specific password generated.
+   Root cause confirmed by a screenshot of the account's own Zoho Mail
+   settings: `admin@welearnyoulearn.com` is on Zoho's **free plan**,
+   which shows "This feature is not available for your account!" on
+   IMAP access - the account was never entitled to authenticate over
+   SMTP/IMAP at all, regardless of password correctness. (Also: the
+   user's first attempt at "the app password" was actually their real
+   Zoho account login password, pasted directly into chat - flagged
+   immediately, user was told to rotate it. That password was never
+   written to any file.)
+
+Given a paid-plan upgrade vs. switching providers, the user chose to
+switch providers rather than pay for Zoho Mail Lite.
+
+## 43. Resend replaces Zoho SMTP
+
+`supabase/functions/send-email` and `supabase/functions/due-date-reminders`
+were rewritten to POST to `https://api.resend.com/emails` over plain
+HTTPS instead of using `denomailer`/SMTP - no port restriction risk
+(it's just an HTTPS fetch, same as every other Edge Function→external-
+service call in this app), and no SMTP/IMAP plan-gating to worry about.
+`RESEND_API_KEY` replaces `ZOHO_SMTP_USER`/`ZOHO_SMTP_PASSWORD` as a
+Supabase secret (the old Zoho secrets were unset once Resend was
+confirmed working). `denomailer` dependency removed entirely - neither
+function imports it anymore.
+
+`RESEND_FROM` is a separate secret (defaults to Resend's shared test
+sender, `WLYL Hub <onboarding@resend.dev>`, if unset) - deliberately
+not hardcoded, so the sender address can change without a redeploy,
+just a `supabase secrets set`. Both functions read it fresh from env
+on every request, not at cold-start/import time.
+
+**Domain verification note, confirmed during this session's testing:**
+Resend's shared test sender (`onboarding@resend.dev`) can only send TO
+the email address on the Resend account itself (`admin@welearnyoulearn.com`
+in this case) until a custom sending domain is verified - a real
+constraint, discovered live via a 500 response with that exact message
+when a test send was attempted to a different address
+(`kowsik@welearnyoulearn.com`). Turned out `welearnyoulearn.com` was
+already a verified domain on this Resend account (set up ~3 months
+prior, unrelated to this project) - once `RESEND_FROM` was switched to
+`WLYL Hub <notifications@welearnyoulearn.com>`, sending to any real
+recipient address worked immediately, confirmed via a live test send
+(Resend returned a real message ID).
+
+## 44. Verified end-to-end, with real sends, not just build checks
+
+Unlike earlier phases where "clean build" was the only confirmation
+before handing off to the user, this feature was proven working by
+actually calling the deployed `send-email` function (via a throwaway
+script hitting the real Edge Function URL with the admin's live
+session token) and confirming a 200 response with a Resend message ID,
+first to the Resend-account address, then - after the domain-sender
+fix - to a genuinely different real address. `due-date-reminders` was
+redeployed with the same Resend code but not yet independently
+exercised (no due-date-triggering task existed to test against at the
+time) - the send path is identical to the already-verified
+`send-email` function, so this is a reasonable but not fully proven
+extrapolation.
+
+## 45. Cloud/secret hygiene notes
+
+- The user pasted a real Resend API key into chat mid-session. Same
+  handling as the Zoho password and R2 secret earlier: never written
+  to any file, set directly as a Supabase secret via CLI, and the user
+  was told an API key (unlike a password) can simply be regenerated in
+  the Resend dashboard to invalidate the one now sitting in chat
+  history - a cleaner remediation than a full account password
+  rotation.
+- `ZOHO_SMTP_USER`/`ZOHO_SMTP_PASSWORD` secrets were removed from
+  Supabase once Resend was confirmed working, rather than left as dead
+  config.

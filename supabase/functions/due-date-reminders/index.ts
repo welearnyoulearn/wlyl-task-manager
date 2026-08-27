@@ -17,12 +17,11 @@
 // arbitrary client calls in the UI.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const ZOHO_SMTP_USER = Deno.env.get('ZOHO_SMTP_USER')!;
-const ZOHO_SMTP_PASSWORD = Deno.env.get('ZOHO_SMTP_PASSWORD')!;
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!;
+const RESEND_FROM = Deno.env.get('RESEND_FROM') || 'WLYL Hub <onboarding@resend.dev>';
 const APP_URL = 'https://wlyl-task-manager.vercel.app';
 
 function todayIso(): string {
@@ -77,15 +76,6 @@ Deno.serve(async (_req) => {
   }
   const emailByUsername = new Map((profiles as Profile[]).map(p => [p.username.toLowerCase(), p.email]));
 
-  const client = new SMTPClient({
-    connection: {
-      hostname: 'smtp.zoho.com',
-      port: 587,
-      tls: false,
-      auth: { username: ZOHO_SMTP_USER, password: ZOHO_SMTP_PASSWORD }
-    }
-  });
-
   let sent = 0;
   let skippedNoEmail = 0;
   const errors: string[] = [];
@@ -102,14 +92,20 @@ Deno.serve(async (_req) => {
 
     const { subject, html, text } = buildEmail(kind, task);
     try {
-      await client.send({ from: `WLYL Hub <${ZOHO_SMTP_USER}>`, to, subject, content: text, html });
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_API_KEY}` },
+        body: JSON.stringify({ from: RESEND_FROM, to: [to], subject, html, text })
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.message || `Resend request failed (${res.status})`);
+      }
       sent++;
     } catch (e) {
       errors.push(`${task.ticket_id}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
-
-  try { await client.close(); } catch { /* already closed/failed */ }
 
   return new Response(JSON.stringify({ sent, skippedNoEmail, errors }), {
     status: 200,
