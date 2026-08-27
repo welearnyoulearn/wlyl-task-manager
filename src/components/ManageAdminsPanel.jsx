@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useProfiles } from '../context/ProfilesContext.jsx';
 import { callManageUser } from '../lib/supabase.js';
 import PasswordChangeCell from './PasswordChangeCell.jsx';
+import EmailChangeCell from './EmailChangeCell.jsx';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,7 @@ export default function ManageAdminsPanel({ active }) {
   const [promotePassword, setPromotePassword] = useState('');
   const [newAdminName, setNewAdminName] = useState('');
   const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [newAdminEmail, setNewAdminEmail] = useState('');
   const [status, setStatus] = useState('');
 
   useEffect(() => {
@@ -48,13 +50,20 @@ export default function ManageAdminsPanel({ active }) {
 
   const addAdmin = async () => {
     const name = newAdminName.trim().toLowerCase();
+    const email = newAdminEmail.trim();
     if (!name || !newAdminPassword) { setStatus('Enter a name and password.'); return; }
     if (profiles.find(p => p.username === name)) { setStatus('That name is already in use.'); return; }
+    // Required, not optional - see ManageMembersPanel's addMember for
+    // why (a missing email is a silent notification gap, not a
+    // recoverable-later inconvenience someone would notice).
+    if (!email) { setStatus('Enter an email address - required so this admin can receive notifications.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setStatus('Enter a valid email address.'); return; }
     try {
-      await callManageUser({ action: 'create', username: name, password: newAdminPassword, isAdmin: true });
+      await callManageUser({ action: 'create', username: name, password: newAdminPassword, isAdmin: true, email });
       await loadProfiles();
       setNewAdminName('');
       setNewAdminPassword('');
+      setNewAdminEmail('');
       setStatus(`${name} added as admin.`);
       toast({ description: `${name} added as admin.` });
     } catch (e) {
@@ -104,6 +113,10 @@ export default function ManageAdminsPanel({ active }) {
             <Label>Password</Label>
             <Input type="password" placeholder="Set password" value={newAdminPassword} onChange={(e) => setNewAdminPassword(e.target.value)} />
           </div>
+          <div className="meta-field" style={{ maxWidth: 220 }}>
+            <Label>Email</Label>
+            <Input type="email" placeholder="name@example.com" value={newAdminEmail} onChange={(e) => setNewAdminEmail(e.target.value)} />
+          </div>
           <Button onClick={addAdmin}>Add Admin</Button>
         </div>
         <div className="status">{status}</div>
@@ -111,13 +124,14 @@ export default function ManageAdminsPanel({ active }) {
         <div className="section-title" style={{ marginTop: 10 }}>Current admins</div>
         <div className="table-scroll">
           <table style={{ marginTop: 8, minWidth: 0 }}>
-            <thead><tr><th>Name</th><th></th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th></th><th></th><th></th></tr></thead>
             <tbody id="adminListBody">
               {admins.length === 0 ? (
-                <tr><td colSpan="3" className="empty">No admins configured.</td></tr>
+                <tr><td colSpan="4" className="empty">No admins configured.</td></tr>
               ) : admins.map(a => (
                 <tr key={a.id}>
                   <td>{a.username}</td>
+                  <EmailChangeCell profileId={a.id} username={a.username} email={a.email} onChanged={loadProfiles} />
                   <PasswordChangeCell username={a.username} />
                   <td>
                     {admins.length === 1 ? (

@@ -75,7 +75,7 @@ export default function Landing({ onOpenSetup }) {
   return (
     <div id="landingPanel" className="landing">
       <div className="landing-manifesto">
-        <div className="landing-eyebrow">WLYL &middot; Weekly Update Tracker</div>
+        <div className="landing-eyebrow">WLYL Hub</div>
         <h2 className="landing-headline">Small updates.<br />Compounding progress.</h2>
         <p className="landing-sub">Every task logged and every ticket closed adds up. This is where the team's week becomes the team's momentum.</p>
 

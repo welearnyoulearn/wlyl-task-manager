@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
   }
 
   const body = await req.json();
-  const { action, username, password, isAdmin } = body;
+  const { action, username, password, isAdmin, email } = body;
 
   if (!username && action !== 'list') {
     return jsonResponse({ error: 'username is required' }, 400);
@@ -85,7 +85,11 @@ Deno.serve(async (req) => {
       const { error: profileErr } = await admin.from('profiles').insert({
         id: created.user.id,
         username: username.toLowerCase(),
-        is_admin: !!isAdmin
+        is_admin: !!isAdmin,
+        // Real address for notification emails (task assignment, due
+        // date reminders) - separate from the synthetic @wlyl.local
+        // login email above, which auth still uses for its own purposes.
+        email: email || null
       });
       if (profileErr) throw profileErr;
 

@@ -4,6 +4,7 @@ import { useProfiles } from '../context/ProfilesContext.jsx';
 import { callManageUser, sb } from '../lib/supabase.js';
 import PasswordChangeCell from './PasswordChangeCell.jsx';
 import MemberRoleCell from './MemberRoleCell.jsx';
+import EmailChangeCell from './EmailChangeCell.jsx';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +29,7 @@ export default function ManageMembersPanel({ active }) {
   const [newMemberUsername, setNewMemberUsername] = useState('');
   const [newMemberPassword, setNewMemberPassword] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('both');
+  const [newMemberEmail, setNewMemberEmail] = useState('');
   const [status, setStatus] = useState('');
 
   useEffect(() => {
@@ -39,10 +41,17 @@ export default function ManageMembersPanel({ active }) {
 
   const addMember = async () => {
     const username = newMemberUsername.trim().toLowerCase();
+    const email = newMemberEmail.trim();
     if (!username || !newMemberPassword) { setStatus('Enter a username and password.'); return; }
     if (profiles.find(p => p.username === username)) { setStatus('That username already exists.'); return; }
+    // Email is required, not optional - without it this person can
+    // never receive task-assignment/due-date notification emails, and
+    // that gap would otherwise be silent (no error, they just never
+    // get mail) until an admin happens to notice and sets it later.
+    if (!email) { setStatus('Enter an email address - required so this member can receive notifications.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setStatus('Enter a valid email address.'); return; }
     try {
-      await callManageUser({ action: 'create', username, password: newMemberPassword, isAdmin: false });
+      await callManageUser({ action: 'create', username, password: newMemberPassword, isAdmin: false, email });
       // callManageUser creates the profile row with the default
       // member_role ('both'); update it here if the admin picked
       // something else on the Add Member form.
@@ -54,6 +63,7 @@ export default function ManageMembersPanel({ active }) {
       setNewMemberUsername('');
       setNewMemberPassword('');
       setNewMemberRole('both');
+      setNewMemberEmail('');
       setStatus(`${username} added as a member.`);
       toast({ description: `${username} added as a member.` });
     } catch (e) {
@@ -92,6 +102,10 @@ export default function ManageMembersPanel({ active }) {
               {ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </NativeSelect>
           </div>
+          <div className="meta-field" style={{ maxWidth: 220 }}>
+            <Label>Email</Label>
+            <Input type="email" placeholder="name@example.com" value={newMemberEmail} onChange={(e) => setNewMemberEmail(e.target.value)} />
+          </div>
           <Button onClick={addMember}>Add Member</Button>
         </div>
         <div className="status">{status}</div>
@@ -99,14 +113,15 @@ export default function ManageMembersPanel({ active }) {
         <div className="section-title" style={{ marginTop: 10 }}>Current members</div>
         <div className="table-scroll">
           <table style={{ marginTop: 8, minWidth: 0 }}>
-            <thead><tr><th>Username</th><th>Role</th><th></th><th></th></tr></thead>
+            <thead><tr><th>Username</th><th>Role</th><th></th><th></th><th></th></tr></thead>
             <tbody id="memberListBody">
               {members.length === 0 ? (
-                <tr><td colSpan="4" className="empty">No members added yet.</td></tr>
+                <tr><td colSpan="5" className="empty">No members added yet.</td></tr>
               ) : members.map(m => (
                 <tr key={m.id}>
                   <td>{m.username}</td>
                   <MemberRoleCell profileId={m.id} memberRole={m.member_role} onChanged={loadProfiles} />
+                  <EmailChangeCell profileId={m.id} username={m.username} email={m.email} onChanged={loadProfiles} />
                   <PasswordChangeCell username={m.username} />
                   <td>
                     <AlertDialog>

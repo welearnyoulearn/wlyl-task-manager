@@ -877,3 +877,118 @@ just the expected state before the user runs the migration (same
 situation as every other new migration in this project - I don't run
 SQL myself). Flagged to the user; re-verify Close Ticket once they've
 run 016.
+
+---
+
+# Phase 5 follow-up 5 — email notifications (Zoho SMTP) + rename to WLYL Hub
+
+## 36. Real per-user email address (profiles.email)
+
+Every account's `auth.users.email` is a synthetic `{username}@wlyl.local`
+address used only to satisfy Supabase Auth's login requirement - it
+was never wired to a real inbox. `supabase/017_profile_email.sql` adds
+a genuine `profiles.email` column, separate from that, specifically for
+outgoing notification mail. Set via a new "Set email"/"Change email"
+control (`EmailChangeCell.jsx`, mirrors `PasswordChangeCell.jsx`) on
+Manage Admins/Manage Members, and now **required** (not optional) on
+the "Add member"/"Add admin" forms - originally shipped optional, but
+the user asked to make it mandatory since a missing email is a *silent*
+gap (the person just never gets notified, no error anywhere) rather
+than something anyone would notice and fix on their own. `manage-user`'s
+`create` action now accepts and stores `email` directly on the new
+profile row.
+
+## 37. Email sending: Zoho Mail SMTP via a generic Edge Function
+
+New `supabase/functions/send-email` - a generic transactional-email
+relay, not tied to one notification type, using `denomailer` (Deno-
+native SMTP client; `nodemailer` isn't Deno-compatible) against
+`smtp.zoho.com:587` (STARTTLS). Credentials (`ZOHO_SMTP_USER`,
+`ZOHO_SMTP_PASSWORD`) are Supabase secrets, same pattern as R2 - never
+in client code. `ZOHO_SMTP_PASSWORD` must be a Zoho **app-specific
+password**, not the account's real login password - flagged explicitly
+to the user after they initially pasted their actual Zoho login
+password into chat; they were advised to rotate that password
+immediately and generate a proper app password instead, since app
+passwords are separately revocable and don't expose the real account
+if this app's secret ever leaked.
+
+Any authenticated user may call `send-email` (same caller-JWT-check
+pattern as `r2-upload`) - it's a mail relay, not itself a privileged
+action; what triggers a send is gated by the calling code, not this
+function.
+
+`src/lib/email.js` wraps the fetch call client-side. Deliberately
+swallows failures (logs to console, never throws) - a notification
+email failing to send should never block or roll back the actual app
+action it's attached to.
+
+## 38. The four requested notifications
+
+1. **Task assigned** - `AssignTaskPanel.jsx`'s `assignTask()` looks up
+   the assignee's `profiles.email` (via the already-loaded `profiles`
+   list) and fires `sendTaskAssignedEmail` right after the insert
+   succeeds, with ticket #, title, description, due date, and a link
+   back into the app (`?ticket=<id>` query param). Skips silently (no
+   error surfaced) if the assignee has no email on file.
+2. **1 day before due date**, 3. **on the due date**, 4. **every day
+   after, until resolved** - all three come from one new scheduled
+   function, `supabase/functions/due-date-reminders`, not three
+   separate jobs. It queries every task with a `due_date` whose
+   `status` isn't `Done` or `Closed` (On Hold counts as still "owed" -
+   the reminder is meant as a nudge to revisit it, not an accusation
+   dev work stalled), buckets each by whether `due_date` is tomorrow /
+   today / already passed, and sends the matching email. An overdue
+   ticket gets re-emailed every single day the sweep runs, for as long
+   as it stays overdue - by design, per the explicit request ("daily
+   notification" after the due date, no cap mentioned).
+
+   Scheduled via `supabase/018_due_date_reminder_cron.sql`
+   (`pg_cron`/`pg_net`, same mechanism as the still-unused precedent in
+   `003_weekly_export_cron.sql`) at 09:00 IST daily - normal working
+   hours, not a middle-of-the-night UTC slot. This function runs with
+   the service-role key directly (no caller-JWT check, unlike
+   `send-email`/`r2-upload`) since `pg_cron` invokes it on a schedule,
+   not from a logged-in browser session - it is not exposed for
+   arbitrary client calls anywhere in the UI.
+
+## 39. Deferred scope
+
+The user was offered (via AskUserQuestion) additional notification
+events beyond the 4 requested - On Hold/QA Failed/QA Passed/Closed
+status-change emails, and new-comment notifications - and explicitly
+chose **none of them, only the original 4**, for now. Not built. Worth
+revisiting later if asked.
+
+## 40. App renamed to "WLYL Hub"
+
+The app had outgrown "Weekly Update Tracker" (its original scope,
+before the ticket/QA/file-upload/notification system this project
+became) - user asked for a naming suggestion; "WLYL Hub" was proposed
+and picked (over "WLYL Flow"/"WLYL Pulse") as the most accurate
+description of current scope without overpromising. Changed everywhere
+it's user-visible: browser tab title (`index.html`), the main `<h1>`
+(`App.jsx`), the landing page eyebrow label (`Landing.jsx`), and the
+"from" name + body copy in outgoing notification emails.
+
+**Deliberately NOT renamed**: the Vercel project/URL
+(`wlyl-task-manager.vercel.app`) and `package.json`'s internal package
+name - confirmed with the user to leave these as-is, since changing the
+live URL would break the R2 CORS `AllowedOrigins` config (note #30-ish,
+the Cloudflare dashboard setting) and any existing bookmarks/links,
+for a cosmetic-only gain. The app displays as "WLYL Hub" everywhere a
+person sees it; the URL underneath is unchanged.
+
+## 41. Still pending before any email actually sends
+
+- User needs to generate a genuine Zoho app-specific password (their
+  first attempt pasted their real account password - see note #37) and
+  rotate their real Zoho password since it was exposed in chat.
+- Once obtained: `supabase secrets set ZOHO_SMTP_USER=... ZOHO_SMTP_PASSWORD=...`,
+  then `supabase functions deploy send-email` and
+  `supabase functions deploy due-date-reminders`.
+- Run `017_profile_email.sql` (already run - confirmed by successfully
+  writing the admin's own email during this session) and
+  `018_due_date_reminder_cron.sql` (not yet confirmed run).
+- Not yet end-to-end verified with a real send, since the SMTP secrets
+  aren't set yet - only build-checked so far.

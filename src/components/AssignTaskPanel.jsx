@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useProfiles } from '../context/ProfilesContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { uploadFile, UPLOAD_KINDS } from '../lib/upload.js';
+import { sendTaskAssignedEmail } from '../lib/email.js';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -79,6 +80,18 @@ export default function AssignTaskPanel({ active }) {
       if (error) throw error;
       setStatus(`Task ${data.ticket_id} assigned to ${assignee}.`);
       toast({ description: `${data.ticket_id} assigned to ${assignee}.` });
+
+      const assigneeProfile = profiles.find(p => p.username === assignee);
+      if (assigneeProfile?.email) {
+        sendTaskAssignedEmail({
+          to: assigneeProfile.email,
+          ticketId: data.ticket_id,
+          title: title.trim(),
+          description,
+          dueDate,
+          assigneeName: assignee
+        });
+      }
       setTitle('');
       setDescription('');
       setDueDate('');

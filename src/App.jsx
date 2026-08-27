@@ -44,7 +44,7 @@ export default function App() {
         <div className="brand-header">
           <img src={wlylLogo} alt="WLYL logo" className="brand-logo" />
           <div>
-            <h1>Weekly Update Tracker</h1>
+            <h1>WLYL Hub</h1>
             <div className="subtitle">Track what your team is working on, every week.</div>
           </div>
         </div>
@@ -58,7 +58,7 @@ export default function App() {
         <div className="brand-header">
           <img src={wlylLogo} alt="WLYL logo" className="brand-logo" />
           <div>
-            <h1>Weekly Update Tracker</h1>
+            <h1>WLYL Hub</h1>
             <div className="subtitle">Track what your team is working on, every week.</div>
           </div>
         </div>
