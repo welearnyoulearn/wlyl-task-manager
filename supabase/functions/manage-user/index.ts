@@ -76,9 +76,18 @@ Deno.serve(async (req) => {
       if (!password) {
         return jsonResponse({ error: 'password is required' }, 400);
       }
-      const email = toSyntheticEmail(username);
+      // loginEmail (synthetic, @wlyl.local) authenticates the account;
+      // `email` (the real address from the request body, destructured
+      // above) is what notification emails go to - these were
+      // previously the same variable name, which silently made every
+      // new account's profiles.email store the synthetic login address
+      // instead of the real one the admin typed into the Add
+      // Member/Admin form. Confirmed live: kowsik's profile had
+      // email: null after creation despite the form correctly sending
+      // pkowsik2004@gmail.com, traced to this shadowing bug.
+      const loginEmail = toSyntheticEmail(username);
       const { data: created, error: createErr } = await admin.auth.admin.createUser({
-        email, password, email_confirm: true
+        email: loginEmail, password, email_confirm: true
       });
       if (createErr) throw createErr;
 
