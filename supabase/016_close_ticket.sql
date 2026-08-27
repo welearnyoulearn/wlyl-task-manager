@@ -21,7 +21,7 @@ alter table tasks
 -- enforce_tasks_column_role_gate function rather than adding a
 -- separate trigger.
 create or replace function enforce_tasks_column_role_gate()
-returns trigger as $
+returns trigger as $$
 declare
   caller_is_admin boolean;
   caller_role text;
@@ -94,4 +94,4 @@ begin
 
   return new;
 end;
-$ language plpgsql security definer;
+$$ language plpgsql security definer;
