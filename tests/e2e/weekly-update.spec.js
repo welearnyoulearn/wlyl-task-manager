@@ -53,6 +53,9 @@ test.describe('Weekly Summary submission', () => {
 test.describe('Submit Update: per-ticket activity notes', () => {
   test('zero ticket activity shows the "no activity" state, not a blank gap', async ({ page }) => {
     await loginFromLanding(page, 'member', TEST_MEMBER);
+    // My Tasks is the default landing tab (Phase 5 follow-up), not Submit
+    // Update - navigate there explicitly.
+    await page.locator('#tabBar').getByText('Submit Update').click();
     // A week far in the past should have no ticket activity for anyone.
     await page.locator('#panel-submit input[type="date"]').fill('2020-01-06');
     await expect(page.locator('#panel-submit').getByText('No ticket activity detected this week.')).toBeVisible();
@@ -61,6 +64,9 @@ test.describe('Submit Update: per-ticket activity notes', () => {
 
   test('posting a note on a detected ticket saves it immediately and shows a posted state', async ({ page }) => {
     await loginFromLanding(page, 'member', TEST_MEMBER);
+    // My Tasks is the default landing tab (Phase 5 follow-up), not Submit
+    // Update - navigate there explicitly.
+    await page.locator('#tabBar').getByText('Submit Update').click();
 
     const firstTicketBlock = page.locator('#panel-submit .entry-block').first();
     test.skip((await firstTicketBlock.count()) === 0, 'Member has no detected ticket activity this week — run task-assignment.spec.js first.');

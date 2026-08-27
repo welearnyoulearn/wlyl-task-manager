@@ -12,7 +12,7 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'Assigned', label: 'Assigned (awaiting accept)' },
   { value: 'Not Started', label: 'Not Started' },
   { value: 'In Progress', label: 'In Progress' },
-  { value: 'Blocked', label: 'Blocked' },
+  { value: 'On Hold', label: 'On Hold' },
   { value: 'Done', label: 'Done' }
 ];
 
@@ -38,13 +38,6 @@ export default function TasksBoardPanel({ active }) {
   const [qaStatusFilter, setQaStatusFilter] = useState('');
   const [sortBy, setSortBy] = useState('created');
   const [search, setSearch] = useState('');
-  // Passed (QA-verified) tickets are hidden by default - the board's
-  // job is "what's active right now," not a full archive. An explicit
-  // filter pick (status/qaStatus) or search always overrides this, and
-  // the toggle lets an admin see everything when they actually want the
-  // history. Failed tickets stay visible by default since they're often
-  // still awaiting a fix/re-submission, not truly done.
-  const [showCompleted, setShowCompleted] = useState(false);
 
   useEffect(() => {
     if (active) {
@@ -64,9 +57,6 @@ export default function TasksBoardPanel({ active }) {
 
   const filtered = useMemo(() => {
     let f = allTasks;
-    if (!showCompleted && !statusFilter && !qaStatusFilter) {
-      f = f.filter(t => t.qaStatus !== 'Passed');
-    }
     if (personFilter) f = f.filter(t => t.assignee === personFilter);
     if (statusFilter) f = f.filter(t => t.status === statusFilter);
     if (qaStatusFilter) f = f.filter(t => (t.qaStatus || 'Not Ready') === qaStatusFilter);
@@ -80,14 +70,14 @@ export default function TasksBoardPanel({ active }) {
     // 'created' needs no explicit sort: allTasks already arrives ordered
     // by created_at desc from loadAllTasks, and filtering preserves order.
     return f;
-  }, [allTasks, personFilter, statusFilter, qaStatusFilter, sortBy, search, showCompleted]);
+  }, [allTasks, personFilter, statusFilter, qaStatusFilter, sortBy, search]);
 
   const counts = useMemo(() => ({
     total: filtered.length,
     awaitingAccept: filtered.filter(t => t.status === 'Assigned').length,
     notStarted: filtered.filter(t => t.status === 'Not Started').length,
     inProgress: filtered.filter(t => t.status === 'In Progress').length,
-    blocked: filtered.filter(t => t.status === 'Blocked').length,
+    onHold: filtered.filter(t => t.status === 'On Hold').length,
     done: filtered.filter(t => t.status === 'Done').length
   }), [filtered]);
 
@@ -106,7 +96,7 @@ export default function TasksBoardPanel({ active }) {
         <div className="summary-card"><div className="num-big">{counts.awaitingAccept}</div><div className="cap">Awaiting accept</div></div>
         <div className="summary-card"><div className="num-big">{counts.notStarted}</div><div className="cap">Not started</div></div>
         <div className="summary-card"><div className="num-big">{counts.inProgress}</div><div className="cap">In progress</div></div>
-        <div className="summary-card"><div className="num-big">{counts.blocked}</div><div className="cap">Blocked</div></div>
+        <div className="summary-card"><div className="num-big">{counts.onHold}</div><div className="cap">On Hold</div></div>
         <div className="summary-card"><div className="num-big">{counts.done}</div><div className="cap">Done</div></div>
       </div>
       <div className="summary-row" id="qaSummaryRow">
@@ -150,15 +140,6 @@ export default function TasksBoardPanel({ active }) {
           <NativeSelect value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
             {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </NativeSelect>
-        </div>
-        <div className="filter-field">
-          <Label style={{ visibility: 'hidden' }}>show</Label>
-          <Button
-            variant={showCompleted ? 'secondary' : 'outline'}
-            onClick={() => setShowCompleted(s => !s)}
-          >
-            {showCompleted ? 'Hide completed' : 'Show completed'}
-          </Button>
         </div>
         <div className="filter-field">
           <Label style={{ visibility: 'hidden' }}>go</Label>

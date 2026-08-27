@@ -25,7 +25,12 @@ const ADMIN_ONLY_TABS = new Set(['history', 'byperson', 'manageadmins', 'tasksbo
 export default function App() {
   const { currentUser, isAdmin, restoring } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('submit');
+  // Default landing tab after login is My Tasks, not Submit Update - a
+  // member's most common need on opening the app is "what do I need to
+  // do", not the weekly-reporting form, and Submit Update's own empty
+  // state (no ticket activity yet this week) could otherwise read as a
+  // blank/broken page on first login.
+  const [activeTab, setActiveTab] = useState('mytasks');
 
   const selectTab = (tabKey) => {
     if (!currentUser) return;

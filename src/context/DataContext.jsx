@@ -82,6 +82,8 @@ export function DataProvider({ children }) {
         ticketId: t.ticket_id,
         title: t.title,
         description: t.description,
+        descriptionFileUrl: t.description_file_url,
+        descriptionFileName: t.description_file_name,
         assignee: t.assignee,
         assignedBy: t.assigned_by,
         dueDate: t.due_date,
@@ -93,6 +95,9 @@ export function DataProvider({ children }) {
         createdAt: t.created_at,
         updatedAt: t.updated_at,
         testPlan: t.test_plan,
+        testPlanFileUrl: t.test_plan_file_url,
+        testPlanFileName: t.test_plan_file_name,
+        holdReason: t.hold_reason,
         qaAssignee: t.qa_assignee,
         qaAssigneeUsername: t.qa_assignee_profile?.username || null,
         comments: (comments || []).filter(c => c.task_id === t.id).map(c => ({
@@ -113,6 +118,7 @@ export function DataProvider({ children }) {
           severity: b.severity,
           environment: b.environment,
           evidenceUrl: b.evidence_url,
+          evidenceUrls: b.evidence_urls || [],
           resolved: b.resolved,
           resolvedAt: b.resolved_at,
           createdAt: b.created_at

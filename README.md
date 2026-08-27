@@ -18,12 +18,12 @@ Every week, each team member writes a short update (what they completed, what's 
 
 ### 2. Admin assigns work
 
-- **Assign Task** (admin sidebar): pick a person, set title, description, due date, priority. This creates a ticket with an auto-generated ID (`WLYL-####`) in `Assigned` status.
+- **Assign Task** (admin sidebar): pick a person, set title, description, a **required** due date, priority. This creates a ticket with an auto-generated ID (`WLYL-####`) in `Assigned` status.
 
 ### 3. Member does the work
 
 - **My Tasks**: shows tasks assigned to that member (as dev assignee), *and* any ticket routed to them via **Assign QA** (see 3b) even if they aren't the dev assignee. A newly assigned task needs to be **accepted** first (`Accept Task` button) before its status can be changed — this records both when it was assigned and when it was accepted.
-- Once accepted, status moves through `Not Started → In Progress → Blocked → Done` via a dropdown on the ticket card. Anyone (member or admin) can post comments directly on a ticket's card.
+- Once accepted, status moves through `Not Started → In Progress → On Hold → Done` via a dropdown on the ticket card. Selecting **On Hold** requires entering a reason first (a dialog asks for it before the status actually changes) — the reason is then shown on the ticket to anyone who can see it. Anyone (member or admin) can post comments directly on a ticket's card.
 
 ### 3a. Member sub-roles (Developer / Tester / Both)
 
@@ -52,17 +52,15 @@ The state machine and who can trigger each transition:
 - **Mark Ready for QA** (`Not Ready` or `Failed` → `Ready for QA`) — only enabled once dev `status` is `Done`, and only for the assignee if they're `developer`/`both` (or an admin). This is what lets a ticket re-enter the QA queue after a fix, since `Failed` isn't a dead end.
 - **Start QA** (`Ready for QA` → `In QA`) — only actionable by the tester an admin explicitly routed the ticket to via Assign QA (below), or an admin. There is no self-pick: a ticket sitting at `Ready for QA` with no `qa_assignee` set shows no Start QA button to anyone, qualified or not — it's marked `QA: unassigned` until an admin assigns it.
 - **Pass QA** (`In QA` → `Passed`) — also force-advances dev `status` to `Done` if it somehow isn't already, so a passed ticket is never left showing an incomplete dev status.
-- **Fail QA** (`In QA` → `Failed`) — opens the bug report form inline; submitting it both logs the bug and flips `qa_status` to `Failed` in one action. `qa_status` never changes without a bug report attached when failing this way.
+- **Fail QA** (`In QA` → `Failed`) — opens the bug report form inline; submitting it both logs the bug and flips `qa_status` to `Failed` in one action. `qa_status` never changes without a bug report attached when failing this way. This is currently the **only** way to create a bug report — the standalone "Report Bug" and "Attach Test Run" actions were removed from the app; a ticket's bug-report history (from past Fail QA actions) still displays, but there's no way to log a new one outside the Fail QA flow.
 
 **Assign QA** (admin-only, required, visible on tickets with `qa_status = 'Ready for QA'`): an admin must route every Ready-for-QA ticket to one specific qualified tester (`tester`/`both` member) via a dropdown, independently of the dev assignee. This is `tasks.qa_assignee` — a separate field from the dev `assignee`. Assignment is mandatory, not optional — there is no self-pick fallback: until an admin assigns someone, the ticket shows a red `QA: unassigned` flag and Start QA is unavailable to everyone, including a fully qualified tester who happens to be the dev assignee. Once assigned, only that person (or an admin) can Start QA. The ticket shows a `QA: <username>` label next to the dev assignee label, and appears in that tester's **My Tasks** even if they aren't the dev assignee.
 
-Independently of that flow, anyone can also:
-- **Report Bug** — log a bug against a ticket at any time, without going through "Fail QA" (doesn't change `qa_status`).
-- **Attach Test Run** — log a Playwright run's result (a CI/trace URL, pass/fail counts, optional notes) against a ticket, for a record of what automated coverage has actually been run against it.
+Each bug report shows steps to reproduce, expected vs. actual behavior, a color-coded severity tag (Blocker/Major/Minor/Cosmetic), optional environment and evidence-link fields, and who reported it. **Mark Resolved** (setting `resolved`/`resolved_at`) is available to the ticket's assignee or any admin. Resolved and open bug reports are grouped separately on the ticket, collapsed behind a "Show details" toggle by default.
 
-Each bug report shows steps to reproduce, expected vs. actual behavior, a color-coded severity tag (Blocker/Major/Minor/Cosmetic), optional environment and evidence-link fields, and who reported it. **Mark Resolved** (setting `resolved`/`resolved_at`) is available to the ticket's assignee or any admin. Resolved and open bug reports are grouped separately on the ticket.
+A `qa_status = 'Passed'` ticket shows a distinct 🚀 **Ready to deploy** badge to admins on every card — Tasks Board deliberately does not hide Passed tickets by default, since that's exactly what an admin most needs to notice.
 
-All of this — the QA badge, the action buttons, bug reports, and test evidence — appears everywhere a ticket card renders (Tasks Board, My Tasks, By Person, Ticket Detail), since they all share the same `TaskCard` component.
+All of this — the QA badge, the action buttons, and bug reports — appears everywhere a ticket card renders (Tasks Board, My Tasks, By Person, Ticket Detail), since they all share the same `TaskCard` component.
 
 **Tasks Board** also has a QA Status filter alongside the existing Person/Status filters, a **Sort by** control (Newest first / Last updated), and its own live counts row per `qa_status`.
 
@@ -122,7 +120,7 @@ task-manager/
       TabBar.jsx, AdminSidebar.jsx                        Navigation
       SubmitUpdateForm.jsx                                 Submit Update
       MyTasksPanel.jsx, TasksBoardPanel.jsx, AssignTaskPanel.jsx, TaskCard.jsx   Tasks/tickets
-      BugReportForm.jsx, BugReportCard.jsx, TestEvidenceForm.jsx                 QA workflow (rendered inside TaskCard)
+      BugReportForm.jsx, BugReportCard.jsx                                       QA workflow (rendered inside TaskCard)
       MyHistoryPanel.jsx, HistoryPanel.jsx, ByPersonPanel.jsx, EntryCard.jsx      Weekly reports
       TicketDetailPanel.jsx                                Shared ticket detail view
       ManageAdminsPanel.jsx, ManageMembersPanel.jsx, PasswordChangeCell.jsx       Admin user mgmt
@@ -150,7 +148,7 @@ task-manager/
 - **`profiles`** — one row per user (`id` = Supabase Auth user id, `username`, `is_admin`, `member_role`). Source of truth for identity and role. `member_role` (`developer`/`tester`/`both`, null for admins) gates dev vs. QA actions — see "Member sub-roles" above.
 - **`weekly_updates`** — one row per person per week (the report form fields).
 - **`weekly_update_comments`** — admin/member comments on a weekly report.
-- **`tasks`** — tickets, with `ticket_id` auto-generated, `assignee`, `status`, `qa_status`, `qa_assignee`, `updated_at`, timestamps. `status` (Assigned/Not Started/In Progress/Blocked/Done) tracks dev progress; `qa_status` (Not Ready/Ready for QA/In QA/Passed/Failed) tracks QA verification independently — see "QA workflow" above. `qa_assignee` (nullable FK to `profiles`) optionally routes QA to one specific tester, admin-settable only. `updated_at` is bumped by a database trigger on every update, not application code.
+- **`tasks`** — tickets, with `ticket_id` auto-generated, `assignee`, `status`, `qa_status`, `qa_assignee`, `test_plan`, `hold_reason`, `updated_at`, timestamps. `status` (Assigned/Not Started/In Progress/On Hold/Done) tracks dev progress — moving to `On Hold` requires `hold_reason` to be set in the same request; `qa_status` (Not Ready/Ready for QA/In QA/Passed/Failed) tracks QA verification independently — see "QA workflow" above. `qa_assignee` (nullable FK to `profiles`) optionally routes QA to one specific tester, admin-settable only. `updated_at` is bumped by a database trigger on every update, not application code.
 - **`task_comments`** — comments on a ticket.
 - **`bug_reports`** — zero or more bugs logged against a ticket during QA (steps/expected/actual, severity, environment, evidence link, resolved/resolved_at). `reported_by` is a plain username string, matching `tasks.assignee`/`task_comments.author` — not a UUID FK to `profiles`, to stay consistent with how identity is stored everywhere else in this schema.
 - **`test_evidence`** — Playwright run results attached to a ticket (CI/trace URL, pass/fail counts, optional notes). `submitted_by` is likewise a plain username string.

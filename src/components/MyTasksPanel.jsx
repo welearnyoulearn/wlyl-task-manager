@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useData } from '../context/DataContext.jsx';
 import TaskCard from './TaskCard.jsx';
 
-const STATUS_ORDER = { Assigned: 0, Blocked: 1, 'In Progress': 2, 'Not Started': 3, Done: 4 };
+const STATUS_ORDER = { Assigned: 0, 'On Hold': 1, 'In Progress': 2, 'Not Started': 3, Done: 4 };
 
 // Whether this ticket currently needs the logged-in person to do
 // something (vs. just being in progress or fully resolved) - drives

@@ -23,6 +23,8 @@ test.describe('Member sub-roles (Developer / Tester / Both)', () => {
     await page.locator('#adminSidebar').getByText('Assign Task').click();
     await page.locator('#taskAssignee').selectOption({ label: TEST_TESTER.username });
     await page.locator('#panel-assigntask input[placeholder*="staging environment"]').fill(title);
+    // Due date is required (Phase 5 follow-up) - fill it before opening the confirm dialog.
+    await page.locator('#panel-assigntask input[type="date"]').fill('2026-12-31');
     // Assigning now opens a confirmation Dialog before the actual insert
     // (Step 6, item 13, Phase 5).
     await page.getByRole('button', { name: 'Assign Task' }).click();
@@ -98,6 +100,8 @@ test.describe('Member sub-roles (Developer / Tester / Both)', () => {
     await page.locator('#adminSidebar').getByText('Assign Task').click();
     await page.locator('#taskAssignee').selectOption({ label: TEST_DEVELOPER.username });
     await page.locator('#panel-assigntask input[placeholder*="staging environment"]').fill(title);
+    // Due date is required (Phase 5 follow-up) - fill it before opening the confirm dialog.
+    await page.locator('#panel-assigntask input[type="date"]').fill('2026-12-31');
     // Assigning now opens a confirmation Dialog before the actual insert
     // (Step 6, item 13, Phase 5).
     await page.getByRole('button', { name: 'Assign Task' }).click();

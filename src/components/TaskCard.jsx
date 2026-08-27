@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import CommentThread from './CommentThread.jsx';
 import BugReportForm from './BugReportForm.jsx';
-import TestEvidenceForm from './TestEvidenceForm.jsx';
 import BugReportCard from './BugReportCard.jsx';
 import { useTicketDetail } from '../context/TicketDetailContext.jsx';
 import { useData } from '../context/DataContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProfiles } from '../context/ProfilesContext.jsx';
 import { sb } from '../lib/supabase.js';
+import { uploadFile, UPLOAD_KINDS } from '../lib/upload.js';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,10 +21,10 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const STATUS_COLORS = {
-  Assigned: '#b57519', 'Not Started': '#6b6b6b', 'In Progress': '#1F8A70', Blocked: '#a83232', Done: '#124F41'
+  Assigned: '#b57519', 'Not Started': '#6b6b6b', 'In Progress': '#1F8A70', 'On Hold': '#a83232', Done: '#124F41'
 };
 
-const STATUS_OPTIONS = ['Not Started', 'In Progress', 'Blocked', 'Done'];
+const STATUS_OPTIONS = ['Not Started', 'In Progress', 'On Hold', 'Done'];
 
 const QA_BADGE_VARIANT = {
   'Not Ready': 'qaNotReady',
@@ -41,12 +41,20 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
   const { profiles } = useProfiles();
   const { toast } = useToast();
 
-  const [showBugForm, setShowBugForm] = useState(false); // 'fail' | 'standalone' | false
-  const [showEvidenceForm, setShowEvidenceForm] = useState(false);
+  // Fail QA's bug-report form (Report Bug and Attach Test Run were
+  // removed as standalone actions - the only remaining trigger for
+  // BugReportForm is failing QA).
+  const [showBugForm, setShowBugForm] = useState(false);
   const [showAssignQa, setShowAssignQa] = useState(false);
   const [showTestPlanForm, setShowTestPlanForm] = useState(false);
   const [testPlanDraft, setTestPlanDraft] = useState('');
   const [testPlanError, setTestPlanError] = useState('');
+  const [testPlanFile, setTestPlanFile] = useState(null);
+  const [testPlanUploading, setTestPlanUploading] = useState(false);
+  const testPlanFileInputRef = useRef(null);
+  const [showHoldReasonForm, setShowHoldReasonForm] = useState(false);
+  const [holdReasonDraft, setHoldReasonDraft] = useState('');
+  const [holdReasonError, setHoldReasonError] = useState('');
   const [busy, setBusy] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -102,12 +110,46 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
   };
 
   const updateStatus = async (status) => {
+    // On Hold requires a reason - open the dialog instead of writing
+    // immediately, same pattern as Mark Ready for QA's mandatory test
+    // plan. Every other status writes right away, unchanged.
+    if (status === 'On Hold') {
+      setHoldReasonDraft(task.holdReason || '');
+      setHoldReasonError('');
+      setShowHoldReasonForm(true);
+      return;
+    }
     setBusy(true);
     try {
       const { error } = await sb.from('tasks').update({ status }).eq('id', task.key);
       if (error) throw error;
       await refresh();
       toast({ description: `${task.ticketId} status: ${status}.` });
+    } catch (e) {
+      toast({ variant: 'destructive', description: 'Could not update status: ' + e.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // A reason is mandatory to put a ticket On Hold - written in the same
+  // request as the status change, enforced at the database level too
+  // (see supabase/014_on_hold_reason.sql).
+  const submitHoldReason = async () => {
+    if (!holdReasonDraft.trim()) {
+      setHoldReasonError('A reason is required to put this ticket on hold.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error } = await sb.from('tasks').update({
+        status: 'On Hold',
+        hold_reason: holdReasonDraft.trim()
+      }).eq('id', task.key);
+      if (error) throw error;
+      setShowHoldReasonForm(false);
+      await refresh();
+      toast({ description: `${task.ticketId} put on hold.` });
     } catch (e) {
       toast({ variant: 'destructive', description: 'Could not update status: ' + e.message });
     } finally {
@@ -160,18 +202,32 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
     }
     setBusy(true);
     try {
+      let testPlanFileUrl = task.testPlanFileUrl || null;
+      let testPlanFileName = task.testPlanFileName || null;
+      if (testPlanFile) {
+        setTestPlanUploading(true);
+        const uploaded = await uploadFile(UPLOAD_KINDS.TEST_PLAN, testPlanFile);
+        testPlanFileUrl = uploaded.url;
+        testPlanFileName = uploaded.fileName;
+        setTestPlanUploading(false);
+      }
       const { error } = await sb.from('tasks').update({
         qa_status: 'Ready for QA',
-        test_plan: testPlanDraft.trim()
+        test_plan: testPlanDraft.trim(),
+        test_plan_file_url: testPlanFileUrl,
+        test_plan_file_name: testPlanFileName
       }).eq('id', task.key);
       if (error) throw error;
       setShowTestPlanForm(false);
+      setTestPlanFile(null);
+      if (testPlanFileInputRef.current) testPlanFileInputRef.current.value = '';
       await refresh();
       toast({ description: `${task.ticketId} marked Ready for QA.` });
     } catch (e) {
       toast({ variant: 'destructive', description: 'Could not update QA status: ' + e.message });
     } finally {
       setBusy(false);
+      setTestPlanUploading(false);
     }
   };
 
@@ -232,6 +288,9 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
             {needsAction && (
               <Badge variant="destructive" className="mr-2 align-middle">Needs action</Badge>
             )}
+            {isAdmin && qaStatus === 'Passed' && (
+              <Badge variant="qaPassed" className="mr-2 align-middle">🚀 Ready to deploy</Badge>
+            )}
             <span className="ticket-link" onClick={() => openTicketDetail(task.ticketId || '')}>{task.ticketId || ''}</span>
             &nbsp;{task.title} {showAssignee && (
               <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: 12 }}> &rarr; {task.assignee}</span>
@@ -250,12 +309,30 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
           {task.acceptedAt ? ' · Accepted ' + new Date(task.acceptedAt).toLocaleString() : ''}
         </div>
         {task.description && (
-          <div className="entry-block"><pre>{task.description}</pre></div>
+          <div className="entry-block">
+            <pre>{task.description}</pre>
+            {task.descriptionFileUrl && (
+              <a href={task.descriptionFileUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13, display: 'inline-block', marginTop: 6 }}>
+                📎 {task.descriptionFileName || 'Attached file'}
+              </a>
+            )}
+          </div>
         )}
         {task.testPlan && (
           <div className="entry-block">
             <div className="label">Test plan</div>
             <pre>{task.testPlan}</pre>
+            {task.testPlanFileUrl && (
+              <a href={task.testPlanFileUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13, display: 'inline-block', marginTop: 6 }}>
+                📎 {task.testPlanFileName || 'Attached file'}
+              </a>
+            )}
+          </div>
+        )}
+        {task.status === 'On Hold' && task.holdReason && (
+          <div className="entry-block blocked">
+            <div className="label">On hold — reason</div>
+            <pre>{task.holdReason}</pre>
           </div>
         )}
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '10px 0', flexWrap: 'wrap' }}>
@@ -330,29 +407,16 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
           {canResolveQa && (
             <>
               <Button size="sm" onClick={passQa} disabled={busy}>Pass QA</Button>
-              <Button variant="destructive" size="sm" onClick={() => setShowBugForm('fail')} disabled={busy}>Fail QA</Button>
+              <Button variant="destructive" size="sm" onClick={() => setShowBugForm(true)} disabled={busy}>Fail QA</Button>
             </>
-          )}
-          {/* Report Bug / Attach Test Run are QA-side actions - a
-              developer-only member never sees them on any ticket,
-              regardless of status, same as Start/Pass/Fail QA above. */}
-          {canDoQaActions && showBugForm !== 'fail' && (
-            <Button variant="ghost" size="sm" onClick={() => setShowBugForm('standalone')}>Report Bug</Button>
-          )}
-          {canDoQaActions && (
-            <Button variant="ghost" size="sm" onClick={() => setShowEvidenceForm(true)}>Attach Test Run</Button>
           )}
         </div>
 
         {showBugForm && (
           <BugReportForm
             task={task}
-            failsQa={showBugForm === 'fail'}
             onClose={() => setShowBugForm(false)}
           />
-        )}
-        {showEvidenceForm && (
-          <TestEvidenceForm task={task} onClose={() => setShowEvidenceForm(false)} />
         )}
 
         <Dialog open={showTestPlanForm} onOpenChange={(open) => { if (!open) setShowTestPlanForm(false); }}>
@@ -371,10 +435,40 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
                 rows={6}
               />
               {testPlanError && <div className="text-xs text-destructive mt-1">{testPlanError}</div>}
+              <div style={{ marginTop: 10 }}>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>Attach a test plan file (optional)</label>
+                <input ref={testPlanFileInputRef} type="file" onChange={(e) => setTestPlanFile(e.target.files?.[0] || null)} />
+                {testPlanFile && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{testPlanFile.name}</div>}
+                {testPlanUploading && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Uploading...</div>}
+              </div>
             </div>
             <DialogFooter>
               <Button variant="ghost" onClick={() => setShowTestPlanForm(false)} disabled={busy}>Cancel</Button>
               <Button onClick={submitTestPlanAndMarkReady} disabled={busy}>Submit & Mark Ready for QA</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showHoldReasonForm} onOpenChange={(open) => { if (!open) setShowHoldReasonForm(false); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Reason required</DialogTitle>
+              <DialogDescription>
+                {task.ticketId} — {task.title}. A reason is required before this ticket can be put on hold; it's shown on the ticket to anyone who can see it.
+              </DialogDescription>
+            </DialogHeader>
+            <div>
+              <Textarea
+                placeholder="What's blocking progress on this ticket?"
+                value={holdReasonDraft}
+                onChange={(e) => setHoldReasonDraft(e.target.value)}
+                rows={4}
+              />
+              {holdReasonError && <div className="text-xs text-destructive mt-1">{holdReasonError}</div>}
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setShowHoldReasonForm(false)} disabled={busy}>Cancel</Button>
+              <Button onClick={submitHoldReason} disabled={busy}>Submit & Put On Hold</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

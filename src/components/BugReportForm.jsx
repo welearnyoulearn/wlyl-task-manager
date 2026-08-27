@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useData } from '../context/DataContext.jsx';
+import { uploadFile, UPLOAD_KINDS } from '../lib/upload.js';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -11,12 +12,13 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const SEVERITIES = ['Blocker', 'Major', 'Minor', 'Cosmetic'];
+const MAX_SCREENSHOTS = 5;
 
-// Opened either from "Fail QA" (which also flips qa_status to Failed on
-// submit) or from the standalone "Report Bug" button (which just logs the
-// bug without touching qa_status) — see the `failsQa` prop. Rendered as a
-// Dialog (Step 6, item 12) instead of the old always-inline form.
-export default function BugReportForm({ task, failsQa, onClose }) {
+// Opened only from "Fail QA" now - the standalone "Report Bug" action
+// was removed from the app (only Report Bug / Attach Test Run stood
+// alone; Fail QA's bug-report step stays, since it's core to the QA
+// workflow, not the standalone "log a bug anytime" feature).
+export default function BugReportForm({ task, onClose }) {
   const { currentUser, currentUserId } = useAuth();
   const { loadAllTasks } = useData();
   const { toast } = useToast();
@@ -27,9 +29,29 @@ export default function BugReportForm({ task, failsQa, onClose }) {
   const [severity, setSeverity] = useState('Major');
   const [environment, setEnvironment] = useState('');
   const [evidenceUrl, setEvidenceUrl] = useState('');
+  const [screenshots, setScreenshots] = useState([]);
+  const [uploadingScreenshots, setUploadingScreenshots] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [status, setStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const screenshotInputRef = useRef(null);
+
+  // Caps at 5 screenshots so a tester can't accidentally attach an
+  // entire camera roll - each is compressed client-side before upload
+  // (see src/lib/upload.js) to keep R2 storage/egress down.
+  const onPickScreenshots = (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (files.length === 0) return;
+    setScreenshots(prev => {
+      const combined = [...prev, ...files].slice(0, MAX_SCREENSHOTS);
+      return combined;
+    });
+  };
+
+  const removeScreenshot = (index) => {
+    setScreenshots(prev => prev.filter((_, i) => i !== index));
+  };
 
   const submit = async () => {
     const errors = {};
@@ -43,6 +65,12 @@ export default function BugReportForm({ task, failsQa, onClose }) {
     }
     setSubmitting(true);
     try {
+      let evidenceUrls = [];
+      if (screenshots.length > 0) {
+        setUploadingScreenshots(true);
+        evidenceUrls = await Promise.all(screenshots.map(f => uploadFile(UPLOAD_KINDS.QA_EVIDENCE, f).then(r => r.url)));
+        setUploadingScreenshots(false);
+      }
       const { error: insertErr } = await sb.from('bug_reports').insert({
         task_id: task.key,
         reported_by: currentUser,
@@ -52,21 +80,21 @@ export default function BugReportForm({ task, failsQa, onClose }) {
         actual_behavior: actualBehavior,
         severity,
         environment: environment || null,
-        evidence_url: evidenceUrl || null
+        evidence_url: evidenceUrl || null,
+        evidence_urls: evidenceUrls
       });
       if (insertErr) throw insertErr;
 
-      if (failsQa) {
-        const { error: updateErr } = await sb.from('tasks').update({ qa_status: 'Failed' }).eq('id', task.key);
-        if (updateErr) throw updateErr;
-      }
+      const { error: updateErr } = await sb.from('tasks').update({ qa_status: 'Failed' }).eq('id', task.key);
+      if (updateErr) throw updateErr;
 
       await loadAllTasks();
-      toast({ description: failsQa ? `${task.ticketId} failed QA — bug report logged.` : `Bug report logged on ${task.ticketId}.` });
+      toast({ description: `${task.ticketId} failed QA — bug report logged.` });
       onClose();
     } catch (e) {
       setStatus('Could not submit bug report: ' + e.message);
       setSubmitting(false);
+      setUploadingScreenshots(false);
     }
   };
 
@@ -74,7 +102,7 @@ export default function BugReportForm({ task, failsQa, onClose }) {
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{failsQa ? 'Fail QA — bug report' : 'Report a bug'}</DialogTitle>
+          <DialogTitle>Fail QA — bug report</DialogTitle>
           <DialogDescription>{task.ticketId} — {task.title}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
@@ -109,13 +137,28 @@ export default function BugReportForm({ task, failsQa, onClose }) {
             <Label>Evidence URL (optional)</Label>
             <Input type="text" value={evidenceUrl} onChange={(e) => setEvidenceUrl(e.target.value)} placeholder="Screenshot, video, or trace link" />
           </div>
+          <div>
+            <Label>Screenshots (optional, up to {MAX_SCREENSHOTS})</Label>
+            {screenshots.length < MAX_SCREENSHOTS && (
+              <input ref={screenshotInputRef} type="file" accept="image/*" multiple onChange={onPickScreenshots} />
+            )}
+            {screenshots.length > 0 && (
+              <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 13 }}>
+                {screenshots.map((f, i) => (
+                  <li key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>{f.name}</span>
+                    <Button variant="ghost" size="sm" className="h-auto p-0 text-xs" onClick={() => removeScreenshot(i)}>Remove</Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {uploadingScreenshots && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Uploading screenshots...</div>}
+          </div>
         </div>
         {status && <div className="text-sm text-destructive">{status}</div>}
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={submitting}>Cancel</Button>
-          <Button onClick={submit} disabled={submitting}>
-            {failsQa ? 'Submit and Fail QA' : 'Submit Bug Report'}
-          </Button>
+          <Button onClick={submit} disabled={submitting}>Submit and Fail QA</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

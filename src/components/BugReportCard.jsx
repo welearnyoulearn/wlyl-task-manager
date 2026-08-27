@@ -68,6 +68,15 @@ export default function BugReportCard({ bug, task }) {
           <a href={bug.evidenceUrl} target="_blank" rel="noreferrer">Evidence link</a>
         </div>
       )}
+      {bug.evidenceUrls && bug.evidenceUrls.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+          {bug.evidenceUrls.map((url, i) => (
+            <a key={i} href={url} target="_blank" rel="noreferrer">
+              <img src={url} alt={`Screenshot ${i + 1}`} style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--line)' }} />
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

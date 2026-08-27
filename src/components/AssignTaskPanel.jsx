@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProfiles } from '../context/ProfilesContext.jsx';
 import { sb } from '../lib/supabase.js';
+import { uploadFile, UPLOAD_KINDS } from '../lib/upload.js';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +25,9 @@ export default function AssignTaskPanel({ active }) {
   const [fieldErrors, setFieldErrors] = useState({});
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [descriptionFile, setDescriptionFile] = useState(null);
+  const [uploadError, setUploadError] = useState('');
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (active) loadProfiles();
@@ -36,6 +40,7 @@ export default function AssignTaskPanel({ active }) {
     const errors = {};
     if (!assignee) errors.assignee = 'Choose a person.';
     if (!title.trim()) errors.title = 'Enter a task title.';
+    if (!dueDate) errors.dueDate = 'Due date is required.';
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
       setStatus('Please fix the highlighted fields.');
@@ -53,9 +58,18 @@ export default function AssignTaskPanel({ active }) {
   const assignTask = async () => {
     setSubmitting(true);
     try {
+      let descriptionFileUrl = null;
+      let descriptionFileName = null;
+      if (descriptionFile) {
+        const uploaded = await uploadFile(UPLOAD_KINDS.TASK_DESCRIPTION, descriptionFile);
+        descriptionFileUrl = uploaded.url;
+        descriptionFileName = uploaded.fileName;
+      }
       const { data, error } = await sb.from('tasks').insert({
         title: title.trim(), description,
-        due_date: dueDate || null,
+        description_file_url: descriptionFileUrl,
+        description_file_name: descriptionFileName,
+        due_date: dueDate,
         priority,
         assignee,
         assigned_by: currentUser,
@@ -68,6 +82,8 @@ export default function AssignTaskPanel({ active }) {
       setTitle('');
       setDescription('');
       setDueDate('');
+      setDescriptionFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       setConfirmOpen(false);
       setTimeout(() => setStatus(''), 2500);
     } catch (e) {
@@ -76,6 +92,23 @@ export default function AssignTaskPanel({ active }) {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // One file is enough to convey a requirement (mockup, spec doc, etc.)
+  // - not a multi-file uploader. Any file type is accepted (image or
+  // document); only images get compressed before upload, see
+  // src/lib/upload.js.
+  const onPickDescriptionFile = (e) => {
+    const file = e.target.files?.[0];
+    setUploadError('');
+    if (!file) { setDescriptionFile(null); return; }
+    if (file.size > 15 * 1024 * 1024) {
+      setUploadError('File is too large (max 15MB).');
+      e.target.value = '';
+      setDescriptionFile(null);
+      return;
+    }
+    setDescriptionFile(file);
   };
 
   return (
@@ -93,8 +126,9 @@ export default function AssignTaskPanel({ active }) {
             {fieldErrors.assignee && <div className="text-xs text-destructive mt-1">{fieldErrors.assignee}</div>}
           </div>
           <div className="meta-field">
-            <Label>Due date (optional)</Label>
+            <Label>Due date</Label>
             <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            {fieldErrors.dueDate && <div className="text-xs text-destructive mt-1">{fieldErrors.dueDate}</div>}
           </div>
           <div className="meta-field">
             <Label>Priority</Label>
@@ -118,6 +152,15 @@ export default function AssignTaskPanel({ active }) {
         <section>
           <div className="section-title">Description</div>
           <Textarea placeholder="Details, links, acceptance criteria..." value={description} onChange={(e) => setDescription(e.target.value)} />
+          <div style={{ marginTop: 10 }}>
+            <Label>Attach a file (optional)</Label>
+            <div className="section-hint" style={{ marginBottom: 6 }}>
+              Convey the requirement with a mockup, spec, or reference file - visible to the assignee on the ticket.
+            </div>
+            <input ref={fileInputRef} type="file" onChange={onPickDescriptionFile} />
+            {descriptionFile && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{descriptionFile.name}</div>}
+            {uploadError && <div className="text-xs text-destructive mt-1">{uploadError}</div>}
+          </div>
         </section>
         <div className="actions">
           <Button onClick={openConfirm}>Assign Task</Button>
@@ -132,7 +175,7 @@ export default function AssignTaskPanel({ active }) {
             <DialogDescription>{title}</DialogDescription>
           </DialogHeader>
           <div className="text-sm text-muted-foreground space-y-1">
-            {dueDate && <div>Due {dueDate}</div>}
+            <div>Due {dueDate}</div>
             <div>Priority: {priority}</div>
           </div>
           <DialogFooter>

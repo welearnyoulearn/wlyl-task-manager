@@ -543,3 +543,247 @@ Start QA button, plus a negative-path direct-API check). Every test in
 an explicit admin-assigns-QA-to-self step first, since `TEST_MEMBER`
 (the account those tests use, `member_role = 'both'`) can no longer
 reach Start QA without going through Assign QA like anyone else.
+
+---
+
+# Phase 5 follow-up 2 — On Hold reason, mandatory due date, standalone
+# bug/evidence actions removed, deploy signal, default tab
+
+## 24. "Blocked" renamed to "On Hold" everywhere, with a mandatory reason
+
+Ticket status's third value (`Not Started -> In Progress -> ? -> Done`)
+is now `On Hold` instead of `Blocked` — same meaning, different label,
+plus a new requirement: selecting it opens a dialog requiring a reason
+before the status actually changes (same UX pattern as Mark Ready for
+QA's mandatory test plan). The reason (`tasks.hold_reason`, new nullable
+column) is then shown on the ticket to anyone who can see it.
+
+This is a rename of an existing status *value*, not just a label swap
+in the UI — `supabase/014_on_hold_reason.sql` updates every existing
+row already sitting at `status = 'Blocked'` to `'On Hold'` too (with
+`hold_reason` left null, since no reason was ever captured for those).
+`tasks.status` has no check constraint restricting its values
+(confirmed by grepping every migration file before writing this one),
+so this was a safe plain data update, not a schema/constraint change.
+
+Enforced at the database level too, not just the dialog requiring the
+field client-side: `enforce_tasks_column_role_gate` (the same trigger
+that's gated every dev/QA column-write rule since Phase 4) gained a
+check inside its existing dev-fields branch — moving `status` to
+`'On Hold'` without a non-empty `hold_reason` in the same request is
+rejected with an exception, same pattern as `012_test_plan.sql`'s
+mandatory-test-plan check.
+
+## 25. Standalone "Report Bug" and "Attach Test Run" removed
+
+Both were QA-only actions that let a tester log a bug or record a test
+run's result *independent* of the Fail QA flow. Removed per explicit
+request — the reasoning given was that these are QA-specific actions a
+developer shouldn't see, and rather than keep two extra entry points
+into `bug_reports`/`test_evidence`, they're gone entirely. **Fail QA's
+own bug-report step is unchanged** — it's the only remaining way to
+create a `bug_reports` row, since recording *why* QA failed is core to
+the QA workflow itself, not the standalone "log a bug anytime" feature.
+
+`TestEvidenceForm.jsx` is now fully orphaned (no other trigger ever
+existed for it) and was deleted outright. `BugReportForm.jsx` lost its
+`failsQa` conditional prop/behavior (title "Report a bug" vs "Fail QA —
+bug report", button text, whether it also flips `qa_status`) since
+every remaining call site fails QA - simplified to always do so.
+
+Existing `bug_reports` and `test_evidence` rows are untouched and still
+display on a ticket's card (collapsed behind "Show details", per Phase
+5's earlier declutter pass) — only the ability to *create new*
+test-evidence rows, or bug reports outside of Fail QA, was removed.
+`test_evidence` display code is intentionally still in `TaskCard.jsx`
+for this reason, even though nothing can insert into it anymore through
+the UI.
+
+**Test impact:** `qa-workflow.spec.js`'s "attaching test evidence
+renders it on the ticket" test was deleted outright — the feature it
+tested no longer has a UI entry point.
+
+## 26. Due date is now mandatory on Assign Task
+
+Previously optional (`due_date: dueDate || null`); now required before
+the confirm dialog will even open, same field-error pattern as the
+`assignee`/`title` checks already there. Not enforced at the database
+level — `tasks.due_date` has no `not null` constraint, and adding one
+retroactively wasn't safe without first confirming no existing row has
+a null due date (not checked - out of scope for a UI-only requirement
+change). Every test that assigns a task now fills a due date
+(`2026-12-31`) before opening the confirm dialog - 5 call sites across
+`task-assignment.spec.js`, `qa-workflow.spec.js`, `qa-assignment.spec.js`
+(x2), and `member-roles.spec.js` (x2).
+
+## 27. Default landing tab changed from Submit Update to My Tasks
+
+A member's most common need on opening the app is "what do I need to
+do," not the weekly-reporting form — and Submit Update's own valid
+empty state ("No ticket activity detected this week") could read as a
+blank/broken page to someone unfamiliar with it, which is what
+prompted this change. `weekly-update.spec.js`'s two Submit-Update-tab
+tests had to gain an explicit tab click first, since they'd relied on
+Submit Update being the default landing view.
+
+## 28. "Ready to deploy" badge + Tasks Board no longer hides Passed tickets
+
+A `qa_status = 'Passed'` ticket now shows a distinct 🚀 "Ready to
+deploy" badge, visible only to admins — the explicit ask was "admin
+should easily see a passed ticket so they can push it live." This
+directly conflicted with the Tasks Board's existing default-hide-Passed
+filter from the earlier declutter pass (note in Phase 5's first
+follow-up): a badge that's hidden by the same page's default filter
+defeats the point. Resolved by removing the Passed auto-hide from Tasks
+Board entirely — decided against keeping a "Show completed" toggle with
+nothing left to filter (would have been dead/no-op UI), so the toggle
+and its state were removed outright rather than kept as a placeholder.
+
+## 29. Deferred / still pending
+
+Three requests from the same batch are NOT yet implemented, waiting on
+inputs from the user:
+- **File upload on ticket description** (admin conveys requirements via
+  file, visible to the assignee) — needs Cloudflare R2 credentials.
+- **Test plan file upload** (alongside the existing text input) — needs
+  R2 credentials.
+- **Fail QA photo upload** (tester attaches up to 5 screenshots) — needs
+  R2 credentials.
+- **Report Bug/Attach Test Run role-gating bug** — user reported seeing
+  these buttons on what was described as a developer-only account
+  (they should be tester/both/admin-only). On inspection the gating
+  logic (`canDoQaActions`) looks correct; asked the user to confirm the
+  account's actual `member_role` in Manage Members before changing
+  anything, since the code review didn't find an obvious bug. Not yet
+  confirmed either way. Superseded in practice by note #25 above (the
+  buttons in question no longer exist at all), but the underlying
+  question of whether `canDoQaActions` has a real gating bug elsewhere
+  is still open and worth revisiting if a similar report comes up again.
+
+---
+
+# Phase 5 follow-up 3 — Cloudflare R2 file uploads + mobile/typography pass
+
+## 30. R2 file uploads: task description, test plan, QA screenshots
+
+The three deferred items from note #29 are now implemented, now that R2
+credentials were provided. This app has no backend server (every write
+goes straight from the browser to Supabase), so the R2 *secret* access
+key can never live in client code or a `VITE_*` env var - anything
+`VITE_`-prefixed gets bundled into the shipped JS and would leak the
+secret to every visitor. Instead, a new Supabase Edge Function,
+`supabase/functions/r2-upload`, holds the secret server-side and hands
+back a short-lived presigned PUT URL scoped to one object key; the
+browser then PUTs the file bytes straight to R2 using that URL. This
+mirrors the existing `manage-user` function's pattern (service-role
+key server-side only, caller's own JWT checked first) rather than
+inventing a new one. Presigning uses `aws4fetch` (R2 is S3-API
+compatible) instead of hand-rolling AWS SigV4.
+
+Any authenticated user can request a presigned URL (not admin-only -
+developers attach test plans, testers attach QA screenshots, admins
+attach task descriptions); the function only proves "a logged-in user
+asked", the same as any other write in this app - actual authorization
+for what gets attached to which row is still the existing RLS policies
+on `tasks`/`bug_reports` when the URL is written there.
+
+**Where each upload lives:**
+- Assign Task -> `tasks.description_file_url`/`description_file_name`
+  (one file, optional, shown to the assignee as a link under the
+  description).
+- Mark Ready for QA -> `tasks.test_plan_file_url`/`test_plan_file_name`
+  (one file, optional, alongside the existing mandatory text field -
+  supplements it, doesn't replace it).
+- Fail QA -> `bug_reports.evidence_urls` (up to 5 screenshots, new
+  `text[]` column, capped both in the UI picker and by a check
+  constraint in `supabase/015_r2_attachments.sql` so a direct API call
+  can't exceed it either). Kept separate from the pre-existing
+  `evidence_url` text column, which stays as a free-text link field a
+  tester can still paste manually (video, external trace, etc.).
+
+**Compression before upload** (the explicit ask: "compress as much as
+possible to use less storage, better performance"): only images are
+compressed (`src/lib/upload.js`) - documents (test plan/description
+attachments can be PDFs, docx, etc.) are uploaded as-is since there's
+no safe way to re-encode an arbitrary document client-side. An image is
+downscaled via canvas to fit within 1600px on its long edge and
+re-encoded as JPEG at 0.75 quality; if that doesn't actually shrink the
+file (already-small images), the original is kept rather than forcing
+a worse-quality re-encode. This is what actually matters for the QA
+screenshot case - phone-camera screenshots routinely run 3-8MB
+uncompressed, multiplied by up to 5 per bug report.
+
+**Storage layout:** objects are keyed `{kind}/{uploader-user-id}/{timestamp}-{random}-{filename}`
+so the bucket stays organized by purpose and it's obvious in the R2
+dashboard what a given object is for and who uploaded it.
+
+**Public URL caveat:** the bucket's public access is currently the
+`*.r2.dev` URL, which Cloudflare marks "dev only, rate-limited" - a
+deliberate choice for now (confirmed with the user) to get uploads
+working immediately rather than block on setting up a custom domain
+first. Swapping to a custom domain later is a one-line change (the
+`R2_PUBLIC_URL` Edge Function secret), not a code change, since every
+URL returned to the client already goes through that variable.
+
+**Not yet done (requires the user to run these - I don't run SQL or
+deploy commands myself):**
+1. Run `supabase/015_r2_attachments.sql` in the Supabase SQL editor.
+2. Set the Edge Function secrets (`supabase secrets set R2_ACCOUNT_ID=... R2_BUCKET=... R2_ACCESS_KEY_ID=... R2_SECRET_ACCESS_KEY=... R2_PUBLIC_URL=...`).
+3. Deploy the function: `supabase functions deploy r2-upload`.
+
+**Security note:** the user pasted the raw R2 credentials (including
+the secret access key) directly into chat. They're not stored in any
+file in this repo - `.gitignore` was extended to cover `.env`/`.env.local`
+defensively, but nothing was written to disk with the actual secret
+value; the deploy command above is how the user gets it into Supabase's
+own secret store instead.
+
+## 31. Mobile responsiveness + typography pass
+
+Driven by explicit feedback that the app needed to be more "user
+friendly," responsive, and legible - confirmed via follow-up questions
+that mobile/tablet layout was the main pain point, with a moderate
+(not drastic) font-size increase.
+
+**Typography:** raised the base body font-size (15px, was browser
+default ~16px inherited inconsistently) and bumped every text tier that
+was sitting at 11-12px for genuinely readable content (hints, captions,
+table cells, form inputs, entry-card body text) up to roughly 13-15px.
+Left alone: short uppercase micro-labels with letter-spacing (badges,
+`.qa-badge`, `.severity-tag`, section eyebrows) - those read fine small
+by design and bumping them would look oversized/loose, not more
+readable.
+
+**Responsiveness:**
+- Added a new 1000px breakpoint (tablets/small laptops) - the existing
+  700px breakpoint was tuned for phones and left a cramped middle zone
+  (filter rows, summary cards, main content padding) on iPad-ish
+  widths with no adjustment at all.
+- Fixed `#adminSidebar` not actually going full-width horizontal on
+  mobile: `AdminSidebar.jsx` sets a Tailwind `w-48` utility class
+  directly on the nav element, which was winning over the plain-CSS
+  `#adminSidebar { width: 100% }` mobile rule depending on Tailwind's
+  injection order - added an `#adminSidebar.w-48` override at the same
+  breakpoint so the fixed width can't survive onto a phone screen
+  regardless of cascade order.
+- Fixed `#authCorner` (the fixed-position sign-in/user badge, top
+  right) overlapping the brand header on narrow screens - it now spans
+  left-to-right and right-aligns its content instead of just nudging in
+  from a fixed corner offset.
+- Added a 44px `min-height` to real form controls (text/date/select
+  inputs, primary/secondary buttons) at the phone breakpoint only - the
+  commonly cited minimum comfortable touch-target size. Deliberately
+  scoped to actual form fields and primary buttons, not applied
+  globally to every `<button>`, since shadcn's compact/ghost/link
+  button variants used throughout TaskCard (inline status controls,
+  "Show details" toggle, Cancel links) are meant to stay visually
+  small.
+
+**Verified visually**, not just by reading the CSS: launched the dev
+server and screenshotted the landing page, My Tasks, Tasks Board, and
+Assign Task at both a 390x844 (phone) and 1440x900 (desktop) viewport
+via a throwaway Playwright script (not committed). Confirmed the admin
+sidebar collapses to a horizontal wrapped row on mobile, the auth
+corner no longer overlaps the header, the new file-upload field on
+Assign Task renders without overflow, and the desktop layout is
+visually unchanged from before this pass.

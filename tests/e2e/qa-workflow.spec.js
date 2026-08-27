@@ -12,6 +12,8 @@ async function assignAndCompleteTicket(page, title) {
   await page.locator('#adminSidebar').getByText('Assign Task').click();
   await page.locator('#taskAssignee').selectOption({ label: TEST_MEMBER.username });
   await page.locator('#panel-assigntask input[placeholder*="staging environment"]').fill(title);
+  // Due date is required (Phase 5 follow-up) - fill it before opening the confirm dialog.
+  await page.locator('#panel-assigntask input[type="date"]').fill('2026-12-31');
   // Assigning now opens a confirmation Dialog before the actual insert
   // (Step 6, item 13, Phase 5).
   await page.getByRole('button', { name: 'Assign Task' }).click();
@@ -121,30 +123,6 @@ test.describe('QA workflow', () => {
     await card.getByRole('button', { name: 'Pass QA' }).click();
     await expect(card.getByText('QA: Passed')).toBeVisible();
     await expect(card.getByText('● Done')).toBeVisible();
-
-    await logout(page);
-  });
-
-  test('attaching test evidence renders it on the ticket', async ({ page }) => {
-    const title = `QA evidence E2E ${Date.now()}`;
-    const card = await assignAndCompleteTicket(page, title);
-
-    // Attach Test Run is also a Dialog now (Phase 5) - portal-rendered,
-    // not inside `card`.
-    await card.getByRole('button', { name: 'Attach Test Run' }).click();
-    const evidenceForm = page.getByRole('dialog');
-    await evidenceForm.getByPlaceholder(/actions\/runs/).fill('https://github.com/example/repo/actions/runs/123');
-    const numberInputs = evidenceForm.locator('input[type="number"]');
-    await numberInputs.nth(0).fill('12');
-    await numberInputs.nth(1).fill('0');
-    await evidenceForm.getByRole('button', { name: 'Attach', exact: true }).click();
-
-    // Bug reports/test evidence are collapsed behind "Show details" by
-    // default (declutter pass, Phase 5 follow-up) - expand before
-    // checking for the attached evidence.
-    await card.getByRole('button', { name: /show details/i }).click();
-    await expect(card.getByText('12/12 passed')).toBeVisible();
-    await expect(card.getByRole('link', { name: 'run' })).toHaveAttribute('href', 'https://github.com/example/repo/actions/runs/123');
 
     await logout(page);
   });
