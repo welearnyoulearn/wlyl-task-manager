@@ -82,7 +82,7 @@ The admin sidebar (visible only to admins, alongside the shared top tabs everyon
 
 | View | What it shows |
 |---|---|
-| **All Updates** | Every weekly report across the team, filterable by person/week, with summary totals |
+| **Weekly Reports** | Every weekly report across the team, filterable by person/week, with summary totals |
 | **By Person** | One person's Weekly Reports *and* their Tickets (with full comment threads) side by side, plus a **Print summary** button |
 | **Tasks Board** | Every ticket across everyone, filterable by person/status, with live status counts |
 | **Assign Task** | The task-creation form |

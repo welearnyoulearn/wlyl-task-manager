@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 
 const ADMIN_TABS = [
-  { key: 'history', label: 'All Updates' },
+  { key: 'history', label: 'Weekly Reports' },
   { key: 'byperson', label: 'By Person' },
   { key: 'tasksboard', label: 'Tasks Board' },
   { key: 'assigntask', label: 'Assign Task' },
