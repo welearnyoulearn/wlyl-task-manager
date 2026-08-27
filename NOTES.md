@@ -787,3 +787,93 @@ sidebar collapses to a horizontal wrapped row on mobile, the auth
 corner no longer overlaps the header, the new file-upload field on
 Assign Task renders without overflow, and the desktop layout is
 visually unchanged from before this pass.
+
+---
+
+# Phase 5 follow-up 4 — closable tickets, clickable summary cards,
+# By Person status filter
+
+## 32. Close Ticket - a final, locked state after QA passes and deploy
+
+Admins asked for a way to mark a Passed ticket as actually shipped -
+previously "Passed" plus the "Ready to deploy" badge (note #28) was as
+far as the lifecycle went; the ticket just sat there indefinitely.
+Added a new `status = 'Closed'` value (`supabase/016_close_ticket.sql`)
+- deliberately a distinct final status, not a boolean flag on top of
+Done, per explicit confirmation: "Done" still means dev work finished
+(a Done ticket can cycle back through QA if it fails), while "Closed"
+means deployed and archived. `closed_at`/`closed_by` record who did it
+and when.
+
+Closing is enforced admin-only and Passed-only at the database level,
+by extending `enforce_tasks_column_role_gate` (the same trigger every
+prior mandatory-field/role rule in this app goes through) rather than
+adding a separate trigger. Once closed, the same trigger rejects *any*
+further UPDATE on that row - closing is a one-way action, matching the
+explicit "read-only after" decision. The UI mirrors this: TaskCard hides
+the dev-status dropdown and all QA action buttons once `status ===
+'Closed'`, though this is presentation only - the actual guarantee is
+the DB trigger, same as every other rule in this app.
+
+**Where it lives:** a "Close Ticket" button (admin-only, confirm dialog,
+same AlertDialog pattern as Delete) appears next to the status controls
+whenever `qa_status === 'Passed' && status !== 'Closed'`. A ✅ Closed
+badge replaces the 🚀 Ready to deploy badge once closed.
+
+**Visibility:** closed tickets are hidden from Tasks Board's default
+view (confirmed with the user: "hide by default, filterable back in") -
+otherwise deployed/archived tickets would pile up at the top of
+"Newest first" forever and crowd out active work. Reachable via the
+Status filter (including the new Closed summary card, note #33) or via
+By Person's new status filter (note #34).
+
+## 33. Tasks Board summary cards are now clickable filters
+
+Both summary rows (dev-status counts and QA-status counts) were
+previously decorative - now each card is a button that sets the
+matching Status/QA Status filter on click, and clicking an already-
+active card clears it back to "All" (there's no separate "clear
+filter" control, so this toggle is the only way back once cards are
+the entry point). An active card gets a highlighted border/background
+(`.summary-card-active`) so it's clear which filter is currently
+applied. A new "Closed" card was added to the dev-status row.
+
+The counts themselves are computed from a `scoped` list (all tasks
+minus Closed, with the Person filter and Search still applied) rather
+than from the currently-`filtered` list - if the counts came from
+`filtered`, clicking one card would shrink the numbers shown on every
+other card (since Status/QA Status filters would compound), which
+would make the cards lie about how many tickets are actually in each
+state. Person and Search filters *do* still narrow the counts, since
+those represent "the tickets I'm looking at," not a competing status
+dimension.
+
+## 34. By Person: ticket status filter
+
+Added a Status dropdown next to the Print Summary button - same
+options as Tasks Board's Status filter, including Closed. Filters only
+the Tickets section, not Weekly Reports (unrelated data). Fixed a
+latent bug while wiring this in: the panel's top-level "no updates or
+tickets for this person yet" empty state was checking the *filtered*
+ticket count, which would have shown that message (implying the person
+has nothing at all) even when they had tickets that just didn't match
+the currently-selected status filter - split into a separate
+`allPersonTickets` (unfiltered, for the top-level empty check) and
+`tickets` (filtered, for the list itself and its own more specific
+empty message, e.g. "No On Hold tickets for this person").
+
+## 35. Verified end-to-end against the live app, not just build-checked
+
+Actually drove the app with Playwright (throwaway script, not
+committed) rather than only confirming a clean `npm run build`:
+confirmed clicking a Tasks Board summary card narrows the list to
+matching tickets and clicking it again restores the full count. Also
+attempted to seed a Passed-QA ticket directly and click Close Ticket,
+which surfaced a real gap worth recording: **migration
+`016_close_ticket.sql` had not been run against the live database at
+the time of this test**, so the close action failed with
+`PGRST204: Could not find the 'closed_at' column` - not a code bug,
+just the expected state before the user runs the migration (same
+situation as every other new migration in this project - I don't run
+SQL myself). Flagged to the user; re-verify Close Ticket once they've
+run 016.

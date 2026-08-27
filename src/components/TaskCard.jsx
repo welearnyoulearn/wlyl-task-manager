@@ -21,7 +21,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const STATUS_COLORS = {
-  Assigned: '#b57519', 'Not Started': '#6b6b6b', 'In Progress': '#1F8A70', 'On Hold': '#a83232', Done: '#124F41'
+  Assigned: '#b57519', 'Not Started': '#6b6b6b', 'In Progress': '#1F8A70', 'On Hold': '#a83232', Done: '#124F41', Closed: '#4a5a55'
 };
 
 const STATUS_OPTIONS = ['Not Started', 'In Progress', 'On Hold', 'Done'];
@@ -261,6 +261,29 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
     }
   };
 
+  // Only an admin can close a ticket, and only once it's passed QA -
+  // enforced at the DB level too (see supabase/016_close_ticket.sql).
+  // Closing is final: the trigger rejects any further UPDATE on a
+  // Closed row, so this is a one-way action, same as the confirm-dialog
+  // pattern used for Delete.
+  const closeTicket = async () => {
+    setBusy(true);
+    try {
+      const { error } = await sb.from('tasks').update({
+        status: 'Closed',
+        closed_at: new Date().toISOString(),
+        closed_by: currentUser
+      }).eq('id', task.key);
+      if (error) throw error;
+      await refresh();
+      toast({ description: `${task.ticketId} closed.` });
+    } catch (e) {
+      toast({ variant: 'destructive', description: 'Could not close ticket: ' + e.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const passQa = async () => {
     setBusy(true);
     try {
@@ -288,8 +311,11 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
             {needsAction && (
               <Badge variant="destructive" className="mr-2 align-middle">Needs action</Badge>
             )}
-            {isAdmin && qaStatus === 'Passed' && (
+            {isAdmin && qaStatus === 'Passed' && task.status !== 'Closed' && (
               <Badge variant="qaPassed" className="mr-2 align-middle">🚀 Ready to deploy</Badge>
+            )}
+            {task.status === 'Closed' && (
+              <Badge variant="secondary" className="mr-2 align-middle">✅ Closed</Badge>
             )}
             <span className="ticket-link" onClick={() => openTicketDetail(task.ticketId || '')}>{task.ticketId || ''}</span>
             &nbsp;{task.title} {showAssignee && (
@@ -335,13 +361,18 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
             <pre>{task.holdReason}</pre>
           </div>
         )}
+        {task.status === 'Closed' && (
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
+            Closed {task.closedAt ? new Date(task.closedAt).toLocaleString() : ''}{task.closedBy ? ` by ${task.closedBy}` : ''}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '10px 0', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: STATUS_COLORS[task.status] || '#6b6b6b' }}>
             &#9679; {task.status}
           </span>
           <Badge variant={QA_BADGE_VARIANT[qaStatus] || 'qaNotReady'}>QA: {qaStatus}</Badge>
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>Priority: {task.priority || 'Normal'}</span>
-          {!canDoDevActions ? null : needsAccept ? (
+          {task.status === 'Closed' ? null : !canDoDevActions ? null : needsAccept ? (
             <Button size="sm" onClick={acceptTask} disabled={busy}>Accept Task</Button>
           ) : (
             <NativeSelect
@@ -352,6 +383,25 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
             >
               {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
             </NativeSelect>
+          )}
+          {isAdmin && qaStatus === 'Passed' && task.status !== 'Closed' && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="secondary" disabled={busy}>Close Ticket</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Close this ticket?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {task.ticketId} — {task.title} has passed QA and is ready to deploy. Closing marks it deployed/done and locks it from further changes. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={closeTicket}>Close Ticket</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
           {showAssignee && (
             <AlertDialog>

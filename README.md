@@ -24,6 +24,7 @@ Every week, each team member writes a short update (what they completed, what's 
 
 - **My Tasks**: shows tasks assigned to that member (as dev assignee), *and* any ticket routed to them via **Assign QA** (see 3b) even if they aren't the dev assignee. A newly assigned task needs to be **accepted** first (`Accept Task` button) before its status can be changed — this records both when it was assigned and when it was accepted.
 - Once accepted, status moves through `Not Started → In Progress → On Hold → Done` via a dropdown on the ticket card. Selecting **On Hold** requires entering a reason first (a dialog asks for it before the status actually changes) — the reason is then shown on the ticket to anyone who can see it. Anyone (member or admin) can post comments directly on a ticket's card.
+- After a ticket passes QA, an admin can **Close Ticket** (a final, one-way status — see "QA workflow" below) to mark it deployed/archived. Closed tickets are hidden from Tasks Board's default view but reachable via the Status filter.
 
 ### 3a. Member sub-roles (Developer / Tester / Both)
 
@@ -55,6 +56,8 @@ The state machine and who can trigger each transition:
 - **Fail QA** (`In QA` → `Failed`) — opens the bug report form inline; submitting it both logs the bug and flips `qa_status` to `Failed` in one action. `qa_status` never changes without a bug report attached when failing this way. This is currently the **only** way to create a bug report — the standalone "Report Bug" and "Attach Test Run" actions were removed from the app; a ticket's bug-report history (from past Fail QA actions) still displays, but there's no way to log a new one outside the Fail QA flow.
 
 **Assign QA** (admin-only, required, visible on tickets with `qa_status = 'Ready for QA'`): an admin must route every Ready-for-QA ticket to one specific qualified tester (`tester`/`both` member) via a dropdown, independently of the dev assignee. This is `tasks.qa_assignee` — a separate field from the dev `assignee`. Assignment is mandatory, not optional — there is no self-pick fallback: until an admin assigns someone, the ticket shows a red `QA: unassigned` flag and Start QA is unavailable to everyone, including a fully qualified tester who happens to be the dev assignee. Once assigned, only that person (or an admin) can Start QA. The ticket shows a `QA: <username>` label next to the dev assignee label, and appears in that tester's **My Tasks** even if they aren't the dev assignee.
+
+**Close Ticket** (admin-only, visible once `qa_status = 'Passed'`): marks the ticket `status = 'Closed'` and records `closed_at`/`closed_by`. This is final — the database rejects any further update to a Closed ticket. Closed tickets are excluded from Tasks Board's default list (they'd otherwise pile up at the top of "Newest first" forever) but are reachable via the Status filter, including a dedicated Closed summary card.
 
 Each bug report shows steps to reproduce, expected vs. actual behavior, a color-coded severity tag (Blocker/Major/Minor/Cosmetic), optional environment and evidence-link fields, and who reported it. **Mark Resolved** (setting `resolved`/`resolved_at`) is available to the ticket's assignee or any admin. Resolved and open bug reports are grouped separately on the ticket, collapsed behind a "Show details" toggle by default.
 

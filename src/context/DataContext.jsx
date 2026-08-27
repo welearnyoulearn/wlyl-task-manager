@@ -98,6 +98,8 @@ export function DataProvider({ children }) {
         testPlanFileUrl: t.test_plan_file_url,
         testPlanFileName: t.test_plan_file_name,
         holdReason: t.hold_reason,
+        closedAt: t.closed_at,
+        closedBy: t.closed_by,
         qaAssignee: t.qa_assignee,
         qaAssigneeUsername: t.qa_assignee_profile?.username || null,
         comments: (comments || []).filter(c => c.task_id === t.id).map(c => ({
