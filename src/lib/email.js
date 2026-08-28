@@ -3,7 +3,7 @@ import { sb } from './supabase.js';
 const SUPABASE_URL = 'https://qpchsvngmvpswwwjqaza.supabase.co';
 const SEND_EMAIL_FN_URL = `${SUPABASE_URL}/functions/v1/send-email`;
 
-const APP_URL = 'https://wlyl-task-manager.vercel.app';
+const APP_URL = 'https://wlylhub.welearnyoulearn.com';
 
 // Failures here are deliberately swallowed by callers (not re-thrown) -
 // a notification email failing to send should never block or roll back

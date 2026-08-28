@@ -22,7 +22,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!;
 const RESEND_FROM = Deno.env.get('RESEND_FROM') || 'WLYL Hub <onboarding@resend.dev>';
-const APP_URL = 'https://wlyl-task-manager.vercel.app';
+const APP_URL = 'https://wlylhub.welearnyoulearn.com';
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
