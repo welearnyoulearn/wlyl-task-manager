@@ -85,6 +85,20 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
   const canStartQa = canDoQaActionsForThisTicket && qaStatus === 'Ready for QA' && !!task.qaAssignee;
   const canResolveQa = canDoQaActionsForThisTicket && qaStatus === 'In QA';
 
+  // A ticket assigned directly to a tester (skipping the usual dev ->
+  // Ready for QA -> admin-assigns-QA pipeline) never reaches a
+  // qa_status/qa_assignee state canResolveQa recognizes, and dev-status
+  // actions are off-limits to a tester-only role (the DB trigger in
+  // supabase/013_mandatory_qa_assignment.sql blocks anyone but the
+  // assignee-with-developer/both role from touching status/accepted_at,
+  // except Pass QA's force-to-Done case) - so without this, that person
+  // would see nothing but the comment box. Give them Pass/Fail QA
+  // directly instead of routing them through the pipeline; both writes
+  // are already permitted for a plain tester role at the DB layer
+  // regardless of the ticket's current qa_status.
+  const isDirectTesterAssignee = !isAdmin && currentMemberRole === 'tester' && task.assignee === currentUser;
+  const canResolveQaDirect = isDirectTesterAssignee && task.status !== 'Closed' && qaStatus !== 'Passed';
+
   const qualifiedTesters = profiles.filter(p => !p.is_admin && (p.member_role === 'tester' || p.member_role === 'both'));
 
   const refresh = async () => {
@@ -454,7 +468,7 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
           {canStartQa && (
             <Button variant="secondary" size="sm" onClick={startQa} disabled={busy}>Start QA</Button>
           )}
-          {canResolveQa && (
+          {(canResolveQa || canResolveQaDirect) && (
             <>
               <Button size="sm" onClick={passQa} disabled={busy}>Pass QA</Button>
               <Button variant="destructive" size="sm" onClick={() => setShowBugForm(true)} disabled={busy}>Fail QA</Button>
