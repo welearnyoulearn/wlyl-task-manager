@@ -60,6 +60,38 @@ export function sendTaskAssignedEmail({ to, ticketId, title, description, dueDat
   return sendEmail({ to, subject, html, text });
 }
 
+// Fired when a tester fails QA on a ticket - notifies whoever needs to
+// act next: the ticket's developer (assignee) so they can rework the
+// issue and mark it Ready for QA again, and every admin so the failure
+// isn't only visible to someone who has to go looking for it.
+export function sendQaFailedEmail({ to, recipientName, ticketId, title, reporterName, severity, stepsToReproduce, expectedBehavior, actualBehavior }) {
+  const link = ticketUrl(ticketId);
+  const subject = `[${ticketId}] QA failed: ${title}`;
+  const html = `
+    <p>Hi ${recipientName},</p>
+    <p><strong>${ticketId} — ${title}</strong> failed QA, reported by ${reporterName}.</p>
+    <p>
+      <strong>Severity:</strong> ${severity}<br/>
+    </p>
+    <p><strong>Steps to reproduce:</strong><br/>${escapeHtml(stepsToReproduce).replace(/\n/g, '<br/>')}</p>
+    <p><strong>Expected:</strong><br/>${escapeHtml(expectedBehavior).replace(/\n/g, '<br/>')}</p>
+    <p><strong>Actual:</strong><br/>${escapeHtml(actualBehavior).replace(/\n/g, '<br/>')}</p>
+    <p>Please rework the issue and mark it Ready for QA again once fixed.</p>
+    <p><a href="${link}">Open in WLYL Hub</a></p>
+  `;
+  const text = [
+    `Hi ${recipientName},`,
+    `${ticketId} - ${title} failed QA, reported by ${reporterName}.`,
+    `Severity: ${severity}`,
+    `Steps to reproduce:\n${stepsToReproduce}`,
+    `Expected:\n${expectedBehavior}`,
+    `Actual:\n${actualBehavior}`,
+    `Please rework the issue and mark it Ready for QA again once fixed.`,
+    `Open in WLYL Hub: ${link}`
+  ].filter(Boolean).join('\n\n');
+  return sendEmail({ to, subject, html, text });
+}
+
 function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }

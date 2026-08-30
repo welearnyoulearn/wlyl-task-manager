@@ -2,7 +2,9 @@ import { useRef, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useData } from '../context/DataContext.jsx';
+import { useProfiles } from '../context/ProfilesContext.jsx';
 import { uploadFile, UPLOAD_KINDS } from '../lib/upload.js';
+import { sendQaFailedEmail } from '../lib/email.js';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,6 +23,7 @@ const MAX_SCREENSHOTS = 5;
 export default function BugReportForm({ task, onClose }) {
   const { currentUser, currentUserId } = useAuth();
   const { loadAllTasks } = useData();
+  const { profiles } = useProfiles();
   const { toast } = useToast();
 
   const [stepsToReproduce, setStepsToReproduce] = useState('');
@@ -90,6 +93,36 @@ export default function BugReportForm({ task, onClose }) {
 
       await loadAllTasks();
       toast({ description: `${task.ticketId} failed QA — bug report logged.` });
+
+      // Notify whoever needs to act next: the ticket's developer
+      // (assignee) so they can rework it and mark it Ready for QA
+      // again, and every admin. Skip a recipient who's also the
+      // reporter (a tester failing their own directly-assigned ticket
+      // shouldn't get a "your ticket failed" email about themselves),
+      // and skip anyone with no email on file - sendEmail already
+      // no-ops on that, this just avoids the lookup noise.
+      const recipients = new Map();
+      const assigneeProfile = profiles.find(p => p.username === task.assignee);
+      if (assigneeProfile?.email && assigneeProfile.username !== currentUser) {
+        recipients.set(assigneeProfile.email, assigneeProfile.username);
+      }
+      profiles.filter(p => p.is_admin && p.email && p.username !== currentUser).forEach(p => {
+        recipients.set(p.email, p.username);
+      });
+      recipients.forEach((recipientName, email) => {
+        sendQaFailedEmail({
+          to: email,
+          recipientName,
+          ticketId: task.ticketId,
+          title: task.title,
+          reporterName: currentUser,
+          severity,
+          stepsToReproduce,
+          expectedBehavior,
+          actualBehavior
+        });
+      });
+
       onClose();
     } catch (e) {
       setStatus('Could not submit bug report: ' + e.message);
