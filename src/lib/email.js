@@ -116,6 +116,49 @@ export function sendMeetingScheduledEmail({ to, recipientName, title, scheduleLa
   return sendEmail({ to, subject, html, text });
 }
 
+// Fired once when an admin reschedules an already-created meeting
+// (kind/weekday/date/time actually changed) - shows both the old and
+// new schedule so recipients immediately see what moved, rather than
+// silently invalidating whatever they'd already planned around from
+// the original "scheduled" email.
+export function sendMeetingRescheduledEmail({ to, recipientName, title, oldScheduleLabel, newScheduleLabel, linkUrl, updatedBy }) {
+  const subject = `Meeting rescheduled: ${title}`;
+  const html = `
+    <p>Hi ${recipientName},</p>
+    <p><strong>${title}</strong> has been rescheduled by ${updatedBy}.</p>
+    <p><strong>Was:</strong> ${oldScheduleLabel}<br/>
+       <strong>Now:</strong> ${newScheduleLabel}</p>
+    <p><a href="${linkUrl}">${linkUrl}</a></p>
+  `;
+  const text = [
+    `Hi ${recipientName},`,
+    `${title} has been rescheduled by ${updatedBy}.`,
+    `Was: ${oldScheduleLabel}`,
+    `Now: ${newScheduleLabel}`,
+    `Join: ${linkUrl}`
+  ].join('\n\n');
+  return sendEmail({ to, subject, html, text });
+}
+
+// Fired once when an admin cancels a meeting - the only way a meeting
+// stops appearing (see cancelMeeting in MeetingsPanel.jsx: soft-cancel
+// via cancelled_at, not a hard delete), so this is the one place
+// recipients learn it's no longer happening at all.
+export function sendMeetingCancelledEmail({ to, recipientName, title, scheduleLabel, cancelledBy }) {
+  const subject = `Meeting cancelled: ${title}`;
+  const html = `
+    <p>Hi ${recipientName},</p>
+    <p><strong>${title}</strong> (${scheduleLabel}) has been cancelled by ${cancelledBy}.</p>
+    <p>No further reminders will be sent for it.</p>
+  `;
+  const text = [
+    `Hi ${recipientName},`,
+    `${title} (${scheduleLabel}) has been cancelled by ${cancelledBy}.`,
+    `No further reminders will be sent for it.`
+  ].join('\n\n');
+  return sendEmail({ to, subject, html, text });
+}
+
 function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }

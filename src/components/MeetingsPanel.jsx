@@ -5,7 +5,7 @@ import { useData } from '../context/DataContext.jsx';
 import { useProfiles } from '../context/ProfilesContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { createGoogleMeetLink } from '../lib/googleMeet.js';
-import { sendMeetingScheduledEmail } from '../lib/email.js';
+import { sendMeetingScheduledEmail, sendMeetingRescheduledEmail, sendMeetingCancelledEmail } from '../lib/email.js';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,7 +21,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-const EMPTY_DRAFT = { title: '', linkUrl: '', kind: 'recurring', weekday: '1', specificDate: '', timeOfDay: '17:00', active: true, recipientMode: 'everyone', recipientIds: [] };
+const EMPTY_DRAFT = { title: '', linkUrl: '', kind: 'recurring', weekday: '1', specificDate: '', timeOfDay: '17:00', active: true, recipientMode: 'everyone', recipientIds: [], linkIsGenerated: false };
+
+// Schedule label shown in emails/UI - shared by the "scheduled",
+// "rescheduled", and card-display code paths so they never drift out
+// of sync with each other.
+function scheduleLabelFor({ kind, weekday, specificDate, timeOfDay }) {
+  return kind === 'recurring'
+    ? `Every ${WEEKDAYS[Number(weekday)]} at ${formatTime(timeOfDay)}, starting ${formatDate(nextDateForWeekday(Number(weekday)))}`
+    : `${formatDate(specificDate)} at ${formatTime(timeOfDay)}`;
+}
 
 function todayLocalIso() {
   const d = new Date();
@@ -90,13 +99,19 @@ export default function MeetingsPanel({ active }) {
   const today = todayLocalIso();
   const profileById = useMemo(() => new Map(profiles.map(p => [p.id, p])), [profiles]);
   const recipientOptions = useMemo(() => profiles.filter(p => p.email), [profiles]);
+  // A Google-generated link is locked once the meeting has actually
+  // been saved (editingKey set) - it's already been emailed out, so
+  // editing or regenerating it would silently break the link people
+  // received. A brand-new, not-yet-saved draft can still regenerate
+  // freely since nothing's gone out yet.
+  const linkLocked = !!editingKey && draft.linkIsGenerated;
 
-  // One-off meetings that have already happened just stop being shown -
-  // no cleanup job needed, and admins can still see/delete them via a
-  // direct DB look if ever needed, but there's no ongoing UI value in
-  // surfacing a meeting that's already over.
+  // Cancelled meetings never show (that's the whole point of
+  // cancelling one); one-off meetings that have already happened just
+  // stop being shown too - no cleanup job needed, there's no ongoing
+  // UI value in surfacing a meeting that's already over.
   const visibleMeetings = useMemo(
-    () => meetings.filter(m => m.kind === 'recurring' || m.specificDate >= today),
+    () => meetings.filter(m => !m.cancelledAt && (m.kind === 'recurring' || m.specificDate >= today)),
     [meetings, today]
   );
 
@@ -118,7 +133,8 @@ export default function MeetingsPanel({ active }) {
       timeOfDay: m.timeOfDay ? m.timeOfDay.slice(0, 5) : '17:00',
       active: m.active,
       recipientMode: m.recipientMode || 'everyone',
-      recipientIds: m.recipientIds || []
+      recipientIds: m.recipientIds || [],
+      linkIsGenerated: m.linkIsGenerated || false
     });
     setFieldErrors({});
     setShowForm(true);
@@ -147,7 +163,7 @@ export default function MeetingsPanel({ active }) {
       const endH = String((h + 1) % 24).padStart(2, '0');
       const endDateTime = `${dateStr}T${endH}:${String(m).padStart(2, '0')}:00+05:30`;
       const { meetLink } = await createGoogleMeetLink({ title: draft.title.trim(), startDateTime, endDateTime });
-      setDraft(d => ({ ...d, linkUrl: meetLink }));
+      setDraft(d => ({ ...d, linkUrl: meetLink, linkIsGenerated: true }));
       toast({ description: 'Google Meet link generated.' });
     } catch (e) {
       toast({ variant: 'destructive', description: 'Could not generate Meet link: ' + e.message });
@@ -177,13 +193,48 @@ export default function MeetingsPanel({ active }) {
         time_of_day: draft.timeOfDay,
         active: draft.active,
         recipient_mode: draft.recipientMode,
-        recipient_ids: draft.recipientMode === 'custom' ? draft.recipientIds : null
+        recipient_ids: draft.recipientMode === 'custom' ? draft.recipientIds : null,
+        link_is_generated: draft.linkIsGenerated
       };
 
+      const recipients = draft.recipientMode === 'custom'
+        ? recipientOptions.filter(p => draft.recipientIds.includes(p.id))
+        : recipientOptions;
+      const newScheduleLabel = scheduleLabelFor(draft);
+
       if (editingKey) {
+        const original = meetings.find(x => x.key === editingKey);
         const { error } = await sb.from('meeting_schedules').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editingKey);
         if (error) throw error;
         toast({ description: `"${payload.title}" updated.` });
+
+        // Only the actual date/time/recurrence moving counts as a
+        // reschedule worth emailing about - editing the title,
+        // recipients, or link on its own doesn't warrant re-notifying
+        // everyone.
+        const scheduleChanged = original && (
+          original.kind !== draft.kind
+          || String(original.weekday) !== String(draft.kind === 'recurring' ? Number(draft.weekday) : null)
+          || (original.specificDate || '') !== (draft.kind === 'one_off' ? draft.specificDate : '')
+          || (original.timeOfDay || '').slice(0, 5) !== draft.timeOfDay
+        );
+        if (scheduleChanged) {
+          const oldScheduleLabel = scheduleLabelFor({
+            kind: original.kind, weekday: original.weekday,
+            specificDate: original.specificDate, timeOfDay: (original.timeOfDay || '').slice(0, 5)
+          });
+          recipients.forEach(p => {
+            sendMeetingRescheduledEmail({
+              to: p.email,
+              recipientName: p.username,
+              title: payload.title,
+              oldScheduleLabel,
+              newScheduleLabel,
+              linkUrl: payload.link_url,
+              updatedBy: currentUser
+            });
+          });
+        }
       } else {
         const { error } = await sb.from('meeting_schedules').insert({
           ...payload,
@@ -198,18 +249,12 @@ export default function MeetingsPanel({ active }) {
         // once here, client-side, only when a NEW meeting is created
         // (not on edits), so people find out right away and can plan
         // around it instead of only the morning it happens.
-        const scheduleLabel = draft.kind === 'recurring'
-          ? `Every ${WEEKDAYS[Number(draft.weekday)]} at ${formatTime(draft.timeOfDay)}, starting ${formatDate(nextDateForWeekday(Number(draft.weekday)))}`
-          : `${formatDate(draft.specificDate)} at ${formatTime(draft.timeOfDay)}`;
-        const recipients = draft.recipientMode === 'custom'
-          ? recipientOptions.filter(p => draft.recipientIds.includes(p.id))
-          : recipientOptions;
         recipients.forEach(p => {
           sendMeetingScheduledEmail({
             to: p.email,
             recipientName: p.username,
             title: payload.title,
-            scheduleLabel,
+            scheduleLabel: newScheduleLabel,
             linkUrl: payload.link_url,
             scheduledBy: currentUser
           });
@@ -225,14 +270,38 @@ export default function MeetingsPanel({ active }) {
     }
   };
 
-  const deleteMeeting = async (m) => {
+  // Soft-cancel, not a hard delete - the row stays for the audit trail
+  // and stops matching the meeting-reminders cron (cancelled_at is not
+  // null), but the main reason for this over a delete is that
+  // cancelling is the one moment recipients need to be told the
+  // meeting isn't happening anymore.
+  const cancelMeeting = async (m) => {
     try {
-      const { error } = await sb.from('meeting_schedules').delete().eq('id', m.key);
+      const { error } = await sb.from('meeting_schedules').update({
+        cancelled_at: new Date().toISOString(),
+        active: false
+      }).eq('id', m.key);
       if (error) throw error;
       await loadMeetings();
-      toast({ description: `"${m.title}" removed.` });
+      toast({ description: `"${m.title}" cancelled.` });
+
+      const recipients = m.recipientMode === 'custom'
+        ? recipientOptions.filter(p => m.recipientIds.includes(p.id))
+        : recipientOptions;
+      const scheduleLabel = scheduleLabelFor({
+        kind: m.kind, weekday: m.weekday, specificDate: m.specificDate, timeOfDay: (m.timeOfDay || '').slice(0, 5)
+      });
+      recipients.forEach(p => {
+        sendMeetingCancelledEmail({
+          to: p.email,
+          recipientName: p.username,
+          title: m.title,
+          scheduleLabel,
+          cancelledBy: currentUser
+        });
+      });
     } catch (e) {
-      toast({ variant: 'destructive', description: 'Could not delete meeting: ' + e.message });
+      toast({ variant: 'destructive', description: 'Could not cancel meeting: ' + e.message });
     }
   };
 
@@ -333,18 +402,19 @@ export default function MeetingsPanel({ active }) {
                       <Button variant="ghost" size="sm" onClick={() => openEditForm(m)}>Edit</Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="destructive" size="sm">Delete</Button>
+                          <Button variant="destructive" size="sm">Cancel Meeting</Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Delete this meeting?</AlertDialogTitle>
+                            <AlertDialogTitle>Cancel this meeting?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              This permanently deletes "{m.title}". This cannot be undone.
+                              This cancels "{m.title}" and emails everyone who was invited to let them know.
+                              No further reminders will go out for it. This cannot be undone.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => deleteMeeting(m)}>Delete</AlertDialogAction>
+                            <AlertDialogCancel>Never mind</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => cancelMeeting(m)}>Cancel Meeting</AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
@@ -381,13 +451,22 @@ export default function MeetingsPanel({ active }) {
                   type="text"
                   placeholder="https://meet.google.com/... or Zoom link"
                   value={draft.linkUrl}
+                  disabled={linkLocked}
                   onChange={(e) => setDraft(d => ({ ...d, linkUrl: e.target.value }))}
                 />
-                <Button type="button" variant="secondary" onClick={generateGoogleMeetLink} disabled={generatingMeet} style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
-                  <Sparkles size={14} strokeWidth={2.3} className="mr-1.5" />
-                  {generatingMeet ? 'Generating...' : 'Generate Meet link'}
-                </Button>
+                {!linkLocked && (
+                  <Button type="button" variant="secondary" onClick={generateGoogleMeetLink} disabled={generatingMeet} style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
+                    <Sparkles size={14} strokeWidth={2.3} className="mr-1.5" />
+                    {generatingMeet ? 'Generating...' : 'Generate Meet link'}
+                  </Button>
+                )}
               </div>
+              {linkLocked && (
+                <div className="section-hint" style={{ marginTop: 4 }}>
+                  This link was auto-generated and already sent out - it's locked to avoid breaking what people received.
+                  Cancel this meeting and schedule a new one if you need a different link.
+                </div>
+              )}
               {fieldErrors.linkUrl && <div className="text-xs text-destructive mt-1">{fieldErrors.linkUrl}</div>}
             </div>
             <div className="meta-row">

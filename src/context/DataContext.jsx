@@ -192,6 +192,8 @@ export function DataProvider({ children }) {
         active: m.active,
         recipientMode: m.recipient_mode,
         recipientIds: m.recipient_ids || [],
+        cancelledAt: m.cancelled_at,
+        linkIsGenerated: m.link_is_generated,
         createdBy: m.created_by,
         createdAt: m.created_at,
         updatedAt: m.updated_at

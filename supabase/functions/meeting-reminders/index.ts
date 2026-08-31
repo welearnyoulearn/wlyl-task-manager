@@ -87,6 +87,7 @@ Deno.serve(async (req) => {
     .from('meeting_schedules')
     .select('id, title, link_url, kind, weekday, specific_date, time_of_day, recipient_mode, recipient_ids')
     .eq('active', true)
+    .is('cancelled_at', null)
     .or(`and(kind.eq.recurring,weekday.eq.${weekday}),and(kind.eq.one_off,specific_date.eq.${today})`);
   if (schedulesErr) {
     return new Response(JSON.stringify({ error: schedulesErr.message }), { status: 500 });
