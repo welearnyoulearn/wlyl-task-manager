@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calendar, RefreshCw, CalendarDays, Video, Pause, Play, Users2 } from 'lucide-react';
+import { Calendar, RefreshCw, CalendarDays, Video, Pause, Play, Users2, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useData } from '../context/DataContext.jsx';
 import { useProfiles } from '../context/ProfilesContext.jsx';
 import { sb } from '../lib/supabase.js';
+import { createGoogleMeetLink } from '../lib/googleMeet.js';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -64,6 +65,7 @@ export default function MeetingsPanel({ active }) {
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [generatingMeet, setGeneratingMeet] = useState(false);
 
   useEffect(() => {
     if (active) {
@@ -108,6 +110,38 @@ export default function MeetingsPanel({ active }) {
     });
     setFieldErrors({});
     setShowForm(true);
+  };
+
+  // A one-off throwaway calendar event just to mint a Meet link - no
+  // attendees, no Google-sent notifications (see create-google-meet).
+  // The event's own date/duration don't need to match the real
+  // meeting's cadence exactly (a recurring weekly meeting reuses this
+  // same link every week regardless), so a nominal 1-hour slot on the
+  // next matching date/the chosen date is enough to generate it.
+  const generateGoogleMeetLink = async () => {
+    if (!draft.title.trim()) {
+      setFieldErrors(prev => ({ ...prev, title: 'Enter a title before generating a Meet link.' }));
+      return;
+    }
+    if (draft.kind === 'one_off' && !draft.specificDate) {
+      setFieldErrors(prev => ({ ...prev, specificDate: 'Pick a date before generating a Meet link.' }));
+      return;
+    }
+    setGeneratingMeet(true);
+    try {
+      const dateStr = draft.kind === 'recurring' ? nextDateForWeekday(Number(draft.weekday)) : draft.specificDate;
+      const [h, m] = draft.timeOfDay.split(':').map(Number);
+      const startDateTime = `${dateStr}T${draft.timeOfDay}:00+05:30`;
+      const endH = String((h + 1) % 24).padStart(2, '0');
+      const endDateTime = `${dateStr}T${endH}:${String(m).padStart(2, '0')}:00+05:30`;
+      const { meetLink } = await createGoogleMeetLink({ title: draft.title.trim(), startDateTime, endDateTime });
+      setDraft(d => ({ ...d, linkUrl: meetLink }));
+      toast({ description: 'Google Meet link generated.' });
+    } catch (e) {
+      toast({ variant: 'destructive', description: 'Could not generate Meet link: ' + e.message });
+    } finally {
+      setGeneratingMeet(false);
+    }
   };
 
   const submit = async () => {
@@ -295,12 +329,18 @@ export default function MeetingsPanel({ active }) {
             </div>
             <div>
               <Label>Meeting link</Label>
-              <Input
-                type="text"
-                placeholder="https://meet.google.com/... or Zoom link"
-                value={draft.linkUrl}
-                onChange={(e) => setDraft(d => ({ ...d, linkUrl: e.target.value }))}
-              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Input
+                  type="text"
+                  placeholder="https://meet.google.com/... or Zoom link"
+                  value={draft.linkUrl}
+                  onChange={(e) => setDraft(d => ({ ...d, linkUrl: e.target.value }))}
+                />
+                <Button type="button" variant="secondary" onClick={generateGoogleMeetLink} disabled={generatingMeet} style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
+                  <Sparkles size={14} strokeWidth={2.3} className="mr-1.5" />
+                  {generatingMeet ? 'Generating...' : 'Generate Meet link'}
+                </Button>
+              </div>
               {fieldErrors.linkUrl && <div className="text-xs text-destructive mt-1">{fieldErrors.linkUrl}</div>}
             </div>
             <div className="meta-row">
