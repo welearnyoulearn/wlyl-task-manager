@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calendar, RefreshCw, CalendarDays, Video, Pause, Play, Users2, Sparkles } from 'lucide-react';
+import { Calendar, RefreshCw, CalendarDays, Video, Pause, Play, Users2, Sparkles, Copy, Check } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useData } from '../context/DataContext.jsx';
 import { useProfiles } from '../context/ProfilesContext.jsx';
@@ -66,6 +66,17 @@ export default function MeetingsPanel({ active }) {
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [generatingMeet, setGeneratingMeet] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(null);
+
+  const copyMeetingLink = async (meeting) => {
+    try {
+      await navigator.clipboard.writeText(meeting.linkUrl);
+      setCopiedKey(meeting.key);
+      setTimeout(() => setCopiedKey(prev => (prev === meeting.key ? null : prev)), 1500);
+    } catch (e) {
+      toast({ variant: 'destructive', description: 'Could not copy link - copy it manually instead.' });
+    }
+  };
 
   useEffect(() => {
     if (active) {
@@ -268,6 +279,19 @@ export default function MeetingsPanel({ active }) {
                       <a href={m.linkUrl} target="_blank" rel="noreferrer" className="chip">
                         <Video size={13} strokeWidth={2.3} /> Join link
                       </a>
+                      <button
+                        type="button"
+                        className="chip chip-muted"
+                        style={{ border: 'none', font: 'inherit' }}
+                        onClick={() => copyMeetingLink(m)}
+                        title="Copy meeting link"
+                      >
+                        {copiedKey === m.key ? (
+                          <><Check size={13} strokeWidth={2.3} /> Copied</>
+                        ) : (
+                          <><Copy size={13} strokeWidth={2.3} /> Copy link</>
+                        )}
+                      </button>
                       <span className="chip chip-muted">
                         <Users2 size={13} strokeWidth={2.3} /> {invitedLabel(m)}
                       </span>
