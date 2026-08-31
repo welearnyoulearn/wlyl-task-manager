@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import {
+  LayoutGrid, Clock, Circle, PlayCircle, PauseCircle, CheckCircle2, Archive,
+  CircleDot, FlaskConical, Beaker, XCircle
+} from 'lucide-react';
 import { useData } from '../context/DataContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import TaskCard from './TaskCard.jsx';
@@ -7,6 +11,47 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { cn } from '@/lib/utils';
+
+// Same color meaning as TaskCard's STATUS_COLORS / QA_BADGE_VARIANT -
+// kept in sync manually since these live in different files, but the
+// hex values are the same ones already used for the status dot / QA
+// badge elsewhere on a ticket, so a colored summary card here matches
+// what a ticket itself shows.
+const STATUS_CARD_STYLE = {
+  Assigned: { color: '#b57519', bg: '#FCF1DE', icon: Clock },
+  'Not Started': { color: '#6b6b6b', bg: '#ECEAE3', icon: Circle },
+  'In Progress': { color: '#1F8A70', bg: '#E9F4F0', icon: PlayCircle },
+  'On Hold': { color: '#a83232', bg: '#fbeceb', icon: PauseCircle },
+  Done: { color: '#124F41', bg: '#E9F4F0', icon: CheckCircle2 },
+  Closed: { color: '#4a5a55', bg: '#ECEAE3', icon: Archive }
+};
+
+const QA_CARD_STYLE = {
+  'Not Ready': { color: '#6B7570', bg: '#ECEAE3', icon: CircleDot },
+  'Ready for QA': { color: '#9C6A16', bg: '#FCF1DE', icon: FlaskConical },
+  'In QA': { color: '#9C6A16', bg: '#FCF1DE', icon: Beaker },
+  Passed: { color: '#124F41', bg: '#E9F4F0', icon: CheckCircle2 },
+  Failed: { color: '#a83232', bg: '#fbeceb', icon: XCircle }
+};
+
+function SummaryCard({ value, label, active, onClick, color, bg, icon: Icon }) {
+  return (
+    <button
+      type="button"
+      className={cn('summary-card summary-card-clickable', active && 'summary-card-active')}
+      style={color ? { '--card-color': color, '--card-bg': bg } : undefined}
+      onClick={onClick}
+    >
+      {Icon && (
+        <div className="summary-card-icon">
+          <Icon size={16} strokeWidth={2.3} />
+        </div>
+      )}
+      <div className="num-big">{value}</div>
+      <div className="cap">{label}</div>
+    </button>
+  );
+}
 
 const STATUS_FILTER_OPTIONS = [
   { value: '', label: 'All' },
@@ -123,44 +168,32 @@ export default function TasksBoardPanel({ active }) {
   return (
     <div className={`panel ${active ? 'active' : ''}`} id="panel-tasksboard">
       <div className="summary-row" id="taskSummaryRow">
-        <button type="button" className={cn('summary-card summary-card-clickable', statusFilter === '' && 'summary-card-active')} onClick={() => setStatusFilter('')}>
-          <div className="num-big">{counts.total}</div><div className="cap">Total tasks</div>
-        </button>
-        <button type="button" className={cn('summary-card summary-card-clickable', statusFilter === 'Assigned' && 'summary-card-active')} onClick={() => toggleStatusFilter('Assigned')}>
-          <div className="num-big">{counts.awaitingAccept}</div><div className="cap">Awaiting accept</div>
-        </button>
-        <button type="button" className={cn('summary-card summary-card-clickable', statusFilter === 'Not Started' && 'summary-card-active')} onClick={() => toggleStatusFilter('Not Started')}>
-          <div className="num-big">{counts.notStarted}</div><div className="cap">Not started</div>
-        </button>
-        <button type="button" className={cn('summary-card summary-card-clickable', statusFilter === 'In Progress' && 'summary-card-active')} onClick={() => toggleStatusFilter('In Progress')}>
-          <div className="num-big">{counts.inProgress}</div><div className="cap">In progress</div>
-        </button>
-        <button type="button" className={cn('summary-card summary-card-clickable', statusFilter === 'On Hold' && 'summary-card-active')} onClick={() => toggleStatusFilter('On Hold')}>
-          <div className="num-big">{counts.onHold}</div><div className="cap">On Hold</div>
-        </button>
-        <button type="button" className={cn('summary-card summary-card-clickable', statusFilter === 'Done' && 'summary-card-active')} onClick={() => toggleStatusFilter('Done')}>
-          <div className="num-big">{counts.done}</div><div className="cap">Done</div>
-        </button>
-        <button type="button" className={cn('summary-card summary-card-clickable', statusFilter === 'Closed' && 'summary-card-active')} onClick={() => toggleStatusFilter('Closed')}>
-          <div className="num-big">{counts.closed}</div><div className="cap">Closed</div>
-        </button>
+        <SummaryCard value={counts.total} label="Total tasks" icon={LayoutGrid}
+          active={statusFilter === ''} onClick={() => setStatusFilter('')} />
+        <SummaryCard value={counts.awaitingAccept} label="Awaiting accept" {...STATUS_CARD_STYLE.Assigned}
+          active={statusFilter === 'Assigned'} onClick={() => toggleStatusFilter('Assigned')} />
+        <SummaryCard value={counts.notStarted} label="Not started" {...STATUS_CARD_STYLE['Not Started']}
+          active={statusFilter === 'Not Started'} onClick={() => toggleStatusFilter('Not Started')} />
+        <SummaryCard value={counts.inProgress} label="In progress" {...STATUS_CARD_STYLE['In Progress']}
+          active={statusFilter === 'In Progress'} onClick={() => toggleStatusFilter('In Progress')} />
+        <SummaryCard value={counts.onHold} label="On Hold" {...STATUS_CARD_STYLE['On Hold']}
+          active={statusFilter === 'On Hold'} onClick={() => toggleStatusFilter('On Hold')} />
+        <SummaryCard value={counts.done} label="Done" {...STATUS_CARD_STYLE.Done}
+          active={statusFilter === 'Done'} onClick={() => toggleStatusFilter('Done')} />
+        <SummaryCard value={counts.closed} label="Closed" {...STATUS_CARD_STYLE.Closed}
+          active={statusFilter === 'Closed'} onClick={() => toggleStatusFilter('Closed')} />
       </div>
       <div className="summary-row" id="qaSummaryRow">
-        <button type="button" className={cn('summary-card summary-card-clickable', qaStatusFilter === 'Not Ready' && 'summary-card-active')} onClick={() => toggleQaStatusFilter('Not Ready')}>
-          <div className="num-big">{qaCounts.notReady}</div><div className="cap">QA: Not ready</div>
-        </button>
-        <button type="button" className={cn('summary-card summary-card-clickable', qaStatusFilter === 'Ready for QA' && 'summary-card-active')} onClick={() => toggleQaStatusFilter('Ready for QA')}>
-          <div className="num-big">{qaCounts.readyForQa}</div><div className="cap">QA: Ready for QA</div>
-        </button>
-        <button type="button" className={cn('summary-card summary-card-clickable', qaStatusFilter === 'In QA' && 'summary-card-active')} onClick={() => toggleQaStatusFilter('In QA')}>
-          <div className="num-big">{qaCounts.inQa}</div><div className="cap">QA: In QA</div>
-        </button>
-        <button type="button" className={cn('summary-card summary-card-clickable', qaStatusFilter === 'Passed' && 'summary-card-active')} onClick={() => toggleQaStatusFilter('Passed')}>
-          <div className="num-big">{qaCounts.passed}</div><div className="cap">QA: Passed</div>
-        </button>
-        <button type="button" className={cn('summary-card summary-card-clickable', qaStatusFilter === 'Failed' && 'summary-card-active')} onClick={() => toggleQaStatusFilter('Failed')}>
-          <div className="num-big">{qaCounts.failed}</div><div className="cap">QA: Failed</div>
-        </button>
+        <SummaryCard value={qaCounts.notReady} label="QA: Not ready" {...QA_CARD_STYLE['Not Ready']}
+          active={qaStatusFilter === 'Not Ready'} onClick={() => toggleQaStatusFilter('Not Ready')} />
+        <SummaryCard value={qaCounts.readyForQa} label="QA: Ready for QA" {...QA_CARD_STYLE['Ready for QA']}
+          active={qaStatusFilter === 'Ready for QA'} onClick={() => toggleQaStatusFilter('Ready for QA')} />
+        <SummaryCard value={qaCounts.inQa} label="QA: In QA" {...QA_CARD_STYLE['In QA']}
+          active={qaStatusFilter === 'In QA'} onClick={() => toggleQaStatusFilter('In QA')} />
+        <SummaryCard value={qaCounts.passed} label="QA: Passed" {...QA_CARD_STYLE.Passed}
+          active={qaStatusFilter === 'Passed'} onClick={() => toggleQaStatusFilter('Passed')} />
+        <SummaryCard value={qaCounts.failed} label="QA: Failed" {...QA_CARD_STYLE.Failed}
+          active={qaStatusFilter === 'Failed'} onClick={() => toggleQaStatusFilter('Failed')} />
       </div>
       <div className="filter-row">
         <div className="filter-field" style={{ minWidth: 200 }}>
