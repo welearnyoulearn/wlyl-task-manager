@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Calendar, RefreshCw, CalendarDays, Video, Pause, Play, Users2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useData } from '../context/DataContext.jsx';
 import { useProfiles } from '../context/ProfilesContext.jsx';
@@ -194,9 +195,14 @@ export default function MeetingsPanel({ active }) {
     <div className={`panel ${active ? 'active' : ''}`} id="panel-meetings">
       <div className="sheet" style={{ maxWidth: 760, margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 4 }}>
-          <div>
-            <div className="section-title" style={{ marginBottom: 4 }}>Meetings</div>
-            <div className="section-hint">Recurring or one-off team meetings. Everyone gets an email the morning of, and again ~15 minutes before.</div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div className="card-icon-badge" style={{ width: 44, height: 44, borderRadius: 12 }}>
+              <Calendar size={20} strokeWidth={2.2} />
+            </div>
+            <div>
+              <div className="section-title" style={{ marginBottom: 4 }}>Meetings</div>
+              <div className="section-hint">Recurring or one-off team meetings. Everyone gets an email the morning of, and again ~15 minutes before.</div>
+            </div>
           </div>
           {isAdmin && <Button size="sm" onClick={openAddForm}>Schedule Meeting</Button>}
         </div>
@@ -208,15 +214,40 @@ export default function MeetingsPanel({ active }) {
           {visibleMeetings.map(m => (
             <Card key={m.key} className="entry-card mb-3">
               <CardContent className="p-4">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                  <span className="entry-name">
-                    {m.title}
-                    {!m.active && <Badge variant="secondary" className="ml-2 align-middle">Paused</Badge>}
-                  </span>
+                <div className="card-title-row">
+                  <div className={`card-icon-badge${m.kind === 'one_off' ? ' amber' : ''}`}>
+                    {m.kind === 'recurring' ? <RefreshCw size={17} strokeWidth={2.2} /> : <CalendarDays size={17} strokeWidth={2.2} />}
+                  </div>
+                  <div className="card-title-main">
+                    <div className="card-title-text">
+                      {m.title}
+                      {!m.active && <Badge variant="secondary" className="ml-2 align-middle">Paused</Badge>}
+                    </div>
+                    <div style={{ fontSize: 13.5, marginTop: 6, color: 'var(--ink)' }}>
+                      {m.kind === 'recurring' ? (
+                        <span>Every {WEEKDAYS[m.weekday]} at {formatTime(m.timeOfDay)} · next {formatDate(nextDateForWeekday(m.weekday))}</span>
+                      ) : (
+                        <span>{formatDate(m.specificDate)} at {formatTime(m.timeOfDay)}</span>
+                      )}
+                    </div>
+                    <div className="card-chip-row">
+                      <a href={m.linkUrl} target="_blank" rel="noreferrer" className="chip">
+                        <Video size={13} strokeWidth={2.3} /> Join link
+                      </a>
+                      <span className="chip chip-muted">
+                        <Users2 size={13} strokeWidth={2.3} /> {invitedLabel(m)}
+                      </span>
+                    </div>
+                    <div className="card-meta-line">
+                      Scheduled by {m.createdBy}
+                    </div>
+                  </div>
                   {isAdmin && (
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                       {m.kind === 'recurring' && (
-                        <Button variant="ghost" size="sm" onClick={() => toggleActive(m)}>{m.active ? 'Pause' : 'Resume'}</Button>
+                        <Button variant="ghost" size="sm" title={m.active ? 'Pause' : 'Resume'} onClick={() => toggleActive(m)}>
+                          {m.active ? <Pause size={14} strokeWidth={2.3} /> : <Play size={14} strokeWidth={2.3} />}
+                        </Button>
                       )}
                       <Button variant="ghost" size="sm" onClick={() => openEditForm(m)}>Edit</Button>
                       <AlertDialog>
@@ -238,19 +269,6 @@ export default function MeetingsPanel({ active }) {
                       </AlertDialog>
                     </div>
                   )}
-                </div>
-                <div style={{ fontSize: 13, marginTop: 6 }}>
-                  {m.kind === 'recurring' ? (
-                    <span>Every {WEEKDAYS[m.weekday]} at {formatTime(m.timeOfDay)} · next {formatDate(nextDateForWeekday(m.weekday))}</span>
-                  ) : (
-                    <span>{formatDate(m.specificDate)} at {formatTime(m.timeOfDay)}</span>
-                  )}
-                </div>
-                <div style={{ marginTop: 6 }}>
-                  <a href={m.linkUrl} target="_blank" rel="noreferrer">🔗 Join link</a>
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10 }}>
-                  Scheduled by {m.createdBy} · Invited: {invitedLabel(m)}
                 </div>
               </CardContent>
             </Card>

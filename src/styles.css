@@ -108,26 +108,33 @@ h1 {
    this class, so wide screens actually get used for them. */
 #panel-submit .sheet, #panel-summary .sheet, #panel-assigntask .sheet { max-width: 760px; margin: 0 auto; }
 
-#adminSidebar {
-  flex-shrink: 0; width: 216px;
+#appSidebar {
+  flex-shrink: 0; width: 220px;
   display: flex; flex-direction: column; gap: 2px;
   background: var(--bg); border-right: 1px solid var(--line);
   padding: 22px 14px;
 }
-.admin-sidebar-title {
+.sidebar-section-title {
   font-size: 11px; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.06em; color: var(--muted); padding: 4px 12px 12px;
 }
-#adminSidebar .tab {
-  padding: 10px 12px; border-radius: 8px; border-bottom: none;
-  white-space: normal; font-weight: 500;
-  transition: background 0.12s, color 0.12s;
+.sidebar-tab {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 9px;
+  white-space: normal; font-weight: 500; font-size: 14px; color: var(--ink);
+  cursor: pointer; user-select: none;
+  transition: background 0.14s, color 0.14s, transform 0.14s;
 }
-#adminSidebar .tab:hover { background: rgba(31,138,112,0.06); }
-#adminSidebar .tab.active {
-  background: var(--accent); color: #fff; font-weight: 600;
-  box-shadow: 0 2px 8px rgba(31,138,112,0.28);
+.sidebar-tab-icon { flex-shrink: 0; color: var(--muted); transition: color 0.14s; }
+.sidebar-tab:hover { background: rgba(31,138,112,0.08); transform: translateX(2px); }
+.sidebar-tab:hover .sidebar-tab-icon { color: var(--accent); }
+.sidebar-tab.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+  color: #fff; font-weight: 600;
+  box-shadow: 0 4px 14px rgba(31,138,112,0.32);
+  transform: translateX(2px);
 }
+.sidebar-tab.active .sidebar-tab-icon { color: #fff; }
 
 /* ===========================================================
    Landing page — scoped tokens (WLYL brand teal/amber), kept
@@ -347,6 +354,38 @@ tbody tr:hover { background: var(--accent-bg); }
 .entry-block pre { white-space: pre-wrap; font-family: inherit; margin: 0; }
 .empty { color: var(--muted); font-size: 14px; padding: 24px 0; text-align: center; }
 
+/* Resources / Meetings / Admin Resources cards - an icon-badge header,
+   pill-style "chip" links for the link/file/action affordances instead
+   of plain underlined text, and a colored accent per card type. */
+.card-icon-badge {
+  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-bg); color: var(--accent-deep);
+}
+.card-icon-badge.amber { background: #FCF1DE; color: #9C6A16; }
+.card-title-row { display: flex; align-items: flex-start; gap: 12px; }
+.card-title-main { flex: 1; min-width: 0; }
+.card-title-text {
+  font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 16.5px;
+  color: var(--ink); word-break: break-word;
+}
+.card-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+  padding: 6px 12px; border-radius: 999px; text-decoration: none;
+  background: var(--accent-bg); color: var(--accent-deep);
+  transition: background 0.14s, transform 0.14s;
+}
+.chip:hover { background: #dcefe8; transform: translateY(-1px); }
+.chip-file { background: #FCF1DE; color: #9C6A16; }
+.chip-file:hover { background: #f8e6c2; }
+.chip-muted { background: var(--bg); color: var(--muted); cursor: default; }
+.chip-muted:hover { background: var(--bg); transform: none; }
+.card-meta-line {
+  font-size: 11.5px; color: var(--muted); margin-top: 12px;
+  padding-top: 10px; border-top: 1px dashed var(--line);
+}
+
 .ticket-link {
   font-family: monospace; color: var(--accent); font-weight: 700;
   cursor: pointer; text-decoration: underline; text-decoration-style: dotted;
@@ -432,8 +471,9 @@ tbody tr:hover { background: var(--accent-bg); }
   .landing-access { padding: 32px 22px 36px; }
   #appLayout { flex-direction: column; gap: 14px; }
   #mainContent { padding: 18px 16px 28px; }
-  #adminSidebar, #adminSidebar.w-48 { width: 100%; flex-direction: row; flex-wrap: wrap; border-right: none; border-bottom: 1px solid var(--line); padding: 14px 10px; }
-  #adminSidebar .tab { flex: 1 1 auto; text-align: center; min-width: 46%; }
+  #appSidebar { width: 100%; flex-direction: row; flex-wrap: wrap; border-right: none; border-bottom: 1px solid var(--line); padding: 14px 10px; }
+  .sidebar-tab { flex: 1 1 auto; justify-content: center; min-width: 46%; }
+  .sidebar-tab.active { transform: none; }
   #cornerLoginBtn, #cornerUserBadge { font-size: 13px; padding: 9px 12px; }
   .sheet { padding: 18px 14px 24px; }
   .meta-row { gap: 10px; margin-bottom: 18px; }
@@ -469,7 +509,7 @@ tbody tr:hover { background: var(--accent-bg); }
 
 @media print {
   body { background: #fff; padding: 0; }
-  .brand-header, #authCorner, #landingPanel, #adminSidebar, #tabBar,
+  .brand-header, #authCorner, #landingPanel, #appSidebar, #tabBar,
   #panel-byperson .filter-row { display: none !important; }
   #personEntries input, #personEntries select, #personEntries button { display: none !important; }
   #personEntries .ticket-link { cursor: default; text-decoration: none; color: var(--ink); }

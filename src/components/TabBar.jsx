@@ -1,12 +1,11 @@
+import { Send, BarChart3, ListChecks, History } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const TABS = [
-  { key: 'submit', label: 'Submit Update' },
-  { key: 'summary', label: 'Weekly Summary' },
-  { key: 'mytasks', label: 'My Tasks' },
-  { key: 'mine', label: 'My History' },
-  { key: 'resources', label: 'Resources' },
-  { key: 'meetings', label: 'Meetings' }
+  { key: 'submit', label: 'Submit Update', icon: Send },
+  { key: 'summary', label: 'Weekly Summary', icon: BarChart3 },
+  { key: 'mytasks', label: 'My Tasks', icon: ListChecks },
+  { key: 'mine', label: 'My History', icon: History }
 ];
 
 // Uses shadcn's Tabs for the trigger/list styling and keyboard behavior,
@@ -15,13 +14,27 @@ const TABS = [
 // effect, see App.jsx), which Radix's TabsContent (unmounts inactive
 // panels) would break. onValueChange just calls through to the existing
 // onSelect callback, same as the old onClick-per-tab did.
+//
+// Resources/Meetings moved to the left Sidebar (they're reference
+// material, not part of the day-to-day submit/track workflow these four
+// tabs cover) - see Sidebar.jsx.
 export default function TabBar({ activeTab, onSelect }) {
   return (
-    <Tabs id="tabBar" value={activeTab} onValueChange={onSelect} className="mb-4">
-      <TabsList>
-        {TABS.map(t => (
-          <TabsTrigger key={t.key} value={t.key}>{t.label}</TabsTrigger>
-        ))}
+    <Tabs id="tabBar" value={activeTab} onValueChange={onSelect} className="mb-5">
+      <TabsList className="h-auto w-full justify-start gap-1.5 bg-transparent p-0 border-b border-border rounded-none">
+        {TABS.map(t => {
+          const Icon = t.icon;
+          return (
+            <TabsTrigger
+              key={t.key}
+              value={t.key}
+              className="gap-2 rounded-full px-4 py-2 text-sm font-semibold text-muted-foreground border border-transparent transition-all duration-150 hover:text-foreground hover:bg-accent data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:shadow-primary/25 data-[state=active]:scale-[1.03]"
+            >
+              <Icon size={15} strokeWidth={2.25} />
+              {t.label}
+            </TabsTrigger>
+          );
+        })}
       </TabsList>
     </Tabs>
   );

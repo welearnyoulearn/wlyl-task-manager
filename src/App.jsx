@@ -6,7 +6,7 @@ import LoginCorner from './components/LoginCorner.jsx';
 import AuthModal from './components/AuthModal.jsx';
 import Landing from './components/Landing.jsx';
 import TabBar from './components/TabBar.jsx';
-import AdminSidebar from './components/AdminSidebar.jsx';
+import Sidebar from './components/Sidebar.jsx';
 import SubmitUpdateForm from './components/SubmitUpdateForm.jsx';
 import WeeklySummaryForm from './components/WeeklySummaryForm.jsx';
 import MyTasksPanel from './components/MyTasksPanel.jsx';
@@ -73,7 +73,7 @@ export default function App() {
           <Landing onOpenSetup={() => setAuthModalOpen(true)} />
         ) : (
           <div id="appLayout">
-            {isAdmin && <AdminSidebar activeTab={activeTab} onSelect={selectTab} />}
+            <Sidebar activeTab={activeTab} onSelect={selectTab} isAdmin={isAdmin} />
             <div id="mainContent">
               <TabBar activeTab={activeTab} onSelect={selectTab} />
 

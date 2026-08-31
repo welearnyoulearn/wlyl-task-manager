@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Lock, Link2, Paperclip } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useData } from '../context/DataContext.jsx';
 import { sb } from '../lib/supabase.js';
@@ -140,9 +141,14 @@ export default function AdminResourcesPanel({ active }) {
     <div className={`panel ${active ? 'active' : ''}`} id="panel-adminresources">
       <div className="sheet" style={{ maxWidth: 760, margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 4 }}>
-          <div>
-            <div className="section-title" style={{ marginBottom: 4 }}>Admin Resources</div>
-            <div className="section-hint">Visible only to admins — other admins' access, billing, infra credentials, anything members shouldn't see.</div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div className="card-icon-badge amber" style={{ width: 44, height: 44, borderRadius: 12 }}>
+              <Lock size={20} strokeWidth={2.2} />
+            </div>
+            <div>
+              <div className="section-title" style={{ marginBottom: 4 }}>Admin Resources</div>
+              <div className="section-hint">Visible only to admins — other admins' access, billing, infra credentials, anything members shouldn't see.</div>
+            </div>
           </div>
           <Button size="sm" onClick={openAddForm}>Add Resource</Button>
         </div>
@@ -154,8 +160,36 @@ export default function AdminResourcesPanel({ active }) {
           {adminResources.map(r => (
             <Card key={r.key} className="entry-card mb-3">
               <CardContent className="p-4">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                  <div className="entry-name">{r.title}</div>
+                <div className="card-title-row">
+                  <div className="card-icon-badge amber">
+                    <Lock size={18} strokeWidth={2.2} />
+                  </div>
+                  <div className="card-title-main">
+                    <div className="card-title-text">{r.title}</div>
+                    {r.body && (
+                      <div className="entry-block" style={{ marginTop: 8, marginBottom: 0 }}>
+                        <pre>{r.body}</pre>
+                      </div>
+                    )}
+                    {(r.linkUrl || r.fileUrl) && (
+                      <div className="card-chip-row">
+                        {r.linkUrl && (
+                          <a href={r.linkUrl} target="_blank" rel="noreferrer" className="chip">
+                            <Link2 size={13} strokeWidth={2.3} /> Open link
+                          </a>
+                        )}
+                        {r.fileUrl && (
+                          <a href={r.fileUrl} target="_blank" rel="noreferrer" className="chip chip-file">
+                            <Paperclip size={13} strokeWidth={2.3} /> {r.fileName || 'Attached file'}
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    <div className="card-meta-line">
+                      Added by {r.createdBy}{r.createdAt ? ' · ' + new Date(r.createdAt).toLocaleString() : ''}
+                      {r.updatedAt && r.updatedAt !== r.createdAt ? ' · edited ' + new Date(r.updatedAt).toLocaleString() : ''}
+                    </div>
+                  </div>
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                     <Button variant="ghost" size="sm" onClick={() => openEditForm(r)}>Edit</Button>
                     <AlertDialog>
@@ -176,25 +210,6 @@ export default function AdminResourcesPanel({ active }) {
                       </AlertDialogContent>
                     </AlertDialog>
                   </div>
-                </div>
-                {r.body && (
-                  <div className="entry-block" style={{ marginTop: 8 }}>
-                    <pre>{r.body}</pre>
-                  </div>
-                )}
-                {r.linkUrl && (
-                  <div style={{ marginTop: 6 }}>
-                    <a href={r.linkUrl} target="_blank" rel="noreferrer">🔗 {r.linkUrl}</a>
-                  </div>
-                )}
-                {r.fileUrl && (
-                  <div style={{ marginTop: 6 }}>
-                    <a href={r.fileUrl} target="_blank" rel="noreferrer">📎 {r.fileName || 'Attached file'}</a>
-                  </div>
-                )}
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10 }}>
-                  Added by {r.createdBy}{r.createdAt ? ' · ' + new Date(r.createdAt).toLocaleString() : ''}
-                  {r.updatedAt && r.updatedAt !== r.createdAt ? ' · edited ' + new Date(r.updatedAt).toLocaleString() : ''}
                 </div>
               </CardContent>
             </Card>
