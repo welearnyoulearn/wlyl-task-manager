@@ -5,6 +5,7 @@ import { useData } from '../context/DataContext.jsx';
 import { useProfiles } from '../context/ProfilesContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { createGoogleMeetLink } from '../lib/googleMeet.js';
+import { sendMeetingScheduledEmail } from '../lib/email.js';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -191,6 +192,28 @@ export default function MeetingsPanel({ active }) {
         });
         if (error) throw error;
         toast({ description: `"${payload.title}" scheduled.` });
+
+        // "Scheduled" notification, on top of (not instead of) the
+        // morning-of / 15-min-before reminders from the cron - fired
+        // once here, client-side, only when a NEW meeting is created
+        // (not on edits), so people find out right away and can plan
+        // around it instead of only the morning it happens.
+        const scheduleLabel = draft.kind === 'recurring'
+          ? `Every ${WEEKDAYS[Number(draft.weekday)]} at ${formatTime(draft.timeOfDay)}, starting ${formatDate(nextDateForWeekday(Number(draft.weekday)))}`
+          : `${formatDate(draft.specificDate)} at ${formatTime(draft.timeOfDay)}`;
+        const recipients = draft.recipientMode === 'custom'
+          ? recipientOptions.filter(p => draft.recipientIds.includes(p.id))
+          : recipientOptions;
+        recipients.forEach(p => {
+          sendMeetingScheduledEmail({
+            to: p.email,
+            recipientName: p.username,
+            title: payload.title,
+            scheduleLabel,
+            linkUrl: payload.link_url,
+            scheduledBy: currentUser
+          });
+        });
       }
 
       setShowForm(false);

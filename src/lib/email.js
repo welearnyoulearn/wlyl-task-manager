@@ -92,6 +92,30 @@ export function sendQaFailedEmail({ to, recipientName, ticketId, title, reporter
   return sendEmail({ to, subject, html, text });
 }
 
+// Fired once, immediately, when an admin schedules a new meeting - on
+// top of (not instead of) the morning-of and ~15-min-before reminders
+// from the meeting-reminders cron. Gives people the details up front
+// so they can plan around it, rather than only finding out the morning
+// it happens.
+export function sendMeetingScheduledEmail({ to, recipientName, title, scheduleLabel, linkUrl, scheduledBy }) {
+  const subject = `New meeting scheduled: ${title}`;
+  const html = `
+    <p>Hi ${recipientName},</p>
+    <p><strong>${title}</strong> has been scheduled by ${scheduledBy}.</p>
+    <p><strong>When:</strong> ${scheduleLabel}</p>
+    <p><a href="${linkUrl}">${linkUrl}</a></p>
+    <p>You'll also get a reminder the morning of, and again about 15 minutes before it starts.</p>
+  `;
+  const text = [
+    `Hi ${recipientName},`,
+    `${title} has been scheduled by ${scheduledBy}.`,
+    `When: ${scheduleLabel}`,
+    `Join: ${linkUrl}`,
+    `You'll also get a reminder the morning of, and again about 15 minutes before it starts.`
+  ].join('\n\n');
+  return sendEmail({ to, subject, html, text });
+}
+
 function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
