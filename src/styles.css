@@ -372,8 +372,9 @@ tbody tr:hover { background: var(--accent-bg); }
   background: var(--accent-bg); color: var(--accent-deep);
 }
 .card-icon-badge.amber { background: #FCF1DE; color: #9C6A16; }
-.card-title-row { display: flex; align-items: flex-start; gap: 12px; }
-.card-title-main { flex: 1; min-width: 0; }
+.card-title-row { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.card-title-main { flex: 1; min-width: 200px; }
+.card-actions { display: flex; gap: 6px; flex-shrink: 0; margin-left: auto; }
 .card-title-text {
   font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 16.5px;
   color: var(--ink); word-break: break-word;

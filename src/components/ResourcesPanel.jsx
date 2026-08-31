@@ -138,7 +138,7 @@ export default function ResourcesPanel({ active }) {
   return (
     <div className={`panel ${active ? 'active' : ''}`} id="panel-resources">
       <div className="sheet" style={{ maxWidth: 760, margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 4 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 4 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
             <div className="card-icon-badge" style={{ width: 44, height: 44, borderRadius: 12 }}>
               <FolderOpen size={20} strokeWidth={2.2} />
@@ -189,7 +189,7 @@ export default function ResourcesPanel({ active }) {
                     </div>
                   </div>
                   {isAdmin && (
-                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <div className="card-actions">
                       <Button variant="ghost" size="sm" onClick={() => openEditForm(r)}>Edit</Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>

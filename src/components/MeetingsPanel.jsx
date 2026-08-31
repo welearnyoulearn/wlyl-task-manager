@@ -194,7 +194,7 @@ export default function MeetingsPanel({ active }) {
   return (
     <div className={`panel ${active ? 'active' : ''}`} id="panel-meetings">
       <div className="sheet" style={{ maxWidth: 760, margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 4 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 4 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
             <div className="card-icon-badge" style={{ width: 44, height: 44, borderRadius: 12 }}>
               <Calendar size={20} strokeWidth={2.2} />
@@ -243,7 +243,7 @@ export default function MeetingsPanel({ active }) {
                     </div>
                   </div>
                   {isAdmin && (
-                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <div className="card-actions">
                       {m.kind === 'recurring' && (
                         <Button variant="ghost" size="sm" title={m.active ? 'Pause' : 'Resume'} onClick={() => toggleActive(m)}>
                           {m.active ? <Pause size={14} strokeWidth={2.3} /> : <Play size={14} strokeWidth={2.3} />}
