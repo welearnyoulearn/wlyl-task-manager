@@ -21,7 +21,7 @@ const TABS = [
 export default function TabBar({ activeTab, onSelect }) {
   return (
     <Tabs id="tabBar" value={activeTab} onValueChange={onSelect} className="mb-5">
-      <TabsList className="h-auto w-full justify-start gap-1.5 bg-transparent p-0 pb-1 border-b border-border rounded-none overflow-x-auto flex-nowrap [-webkit-overflow-scrolling:touch]">
+      <TabsList className="h-auto w-full flex-wrap justify-start gap-1.5 bg-transparent p-0 pb-1 border-b border-border rounded-none">
         {TABS.map(t => {
           const Icon = t.icon;
           return (

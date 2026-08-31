@@ -503,13 +503,23 @@ tbody tr:hover { background: var(--accent-bg); }
   .landing-access { padding: 32px 22px 36px; }
   #appLayout { flex-direction: column; gap: 14px; }
   #mainContent { padding: 18px 16px 28px; }
+  /* Grid, not flex-wrap, for the mobile sidebar - flex-wrap's "does the
+     next item fit on this line" guess was unreliable (a section title
+     or nav item would sometimes stretch to fill a whole row instead of
+     sharing it), so "Resources"/"Meetings" packed one-per-row and the
+     "Admin" section title landed beside a nav item instead of on its
+     own line. A 2-column grid with the section titles explicitly
+     spanning both columns has no such ambiguity. */
   #appSidebar {
-    width: 100%; flex-direction: row; flex-wrap: wrap; border-right: none;
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 8px;
+    width: 100%; flex-direction: unset; border-right: none;
     border-bottom: 1px solid var(--line); padding: 14px 10px;
     border-radius: 16px;
     position: static; max-height: none; overflow-y: visible;
   }
-  .sidebar-tab { flex: 1 1 auto; justify-content: center; min-width: 46%; }
+  .sidebar-section-title { grid-column: 1 / -1; padding: 6px 8px 4px; margin-top: 4px; }
+  .sidebar-section-title:first-child { margin-top: 0; }
+  .sidebar-tab { justify-content: center; min-width: 0; }
   .sidebar-tab.active { transform: none; }
   #cornerLoginBtn, #cornerUserBadge { font-size: 13px; padding: 9px 12px; }
   .sheet { padding: 18px 14px 24px; }
