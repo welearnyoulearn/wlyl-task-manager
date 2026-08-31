@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import wlylLogo from './assets/wlyl-logo.png';
 import { useAuth } from './context/AuthContext.jsx';
 import { TicketDetailProvider } from './context/TicketDetailContext.jsx';
@@ -28,12 +28,26 @@ const ADMIN_ONLY_TABS = new Set(['history', 'byperson', 'manageadmins', 'tasksbo
 export default function App() {
   const { currentUser, isAdmin, restoring } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  // Default landing tab after login is My Tasks, not Submit Update - a
+  // Default landing tab after login is My Tasks for members - a
   // member's most common need on opening the app is "what do I need to
   // do", not the weekly-reporting form, and Submit Update's own empty
   // state (no ticket activity yet this week) could otherwise read as a
-  // blank/broken page on first login.
+  // blank/broken page on first login. Admins land on Tasks Board
+  // instead (set below, once isAdmin is actually known) - an admin's
+  // most common need is "what's the state of the team's work", not
+  // their own personal task list.
   const [activeTab, setActiveTab] = useState('mytasks');
+  const didSetInitialTab = useRef(false);
+
+  useEffect(() => {
+    if (!restoring && currentUser && !didSetInitialTab.current) {
+      didSetInitialTab.current = true;
+      if (isAdmin) setActiveTab('tasksboard');
+    }
+    if (!currentUser) {
+      didSetInitialTab.current = false;
+    }
+  }, [restoring, currentUser, isAdmin]);
 
   const selectTab = (tabKey) => {
     if (!currentUser) return;
