@@ -8,6 +8,7 @@ export function DataProvider({ children }) {
   const [allTasks, setAllTasks] = useState([]);
   const [entriesError, setEntriesError] = useState('');
   const [resources, setResources] = useState([]);
+  const [meetings, setMeetings] = useState([]);
 
   const loadAllEntries = useCallback(async () => {
     try {
@@ -170,8 +171,41 @@ export function DataProvider({ children }) {
     }
   }, []);
 
+  const loadMeetings = useCallback(async () => {
+    try {
+      const { data, error } = await sb
+        .from('meeting_schedules')
+        .select('*')
+        .order('kind', { ascending: true })
+        .order('weekday', { ascending: true })
+        .order('specific_date', { ascending: true });
+      if (error) throw error;
+      const mapped = (data || []).map(m => ({
+        key: m.id,
+        title: m.title,
+        linkUrl: m.link_url,
+        kind: m.kind,
+        weekday: m.weekday,
+        specificDate: m.specific_date,
+        timeOfDay: m.time_of_day,
+        active: m.active,
+        createdBy: m.created_by,
+        createdAt: m.created_at,
+        updatedAt: m.updated_at
+      }));
+      setMeetings(mapped);
+      return mapped;
+    } catch (e) {
+      setMeetings([]);
+      return [];
+    }
+  }, []);
+
   return (
-    <DataContext.Provider value={{ allEntries, allTasks, entriesError, loadAllEntries, loadAllTasks, resources, loadResources }}>
+    <DataContext.Provider value={{
+      allEntries, allTasks, entriesError, loadAllEntries, loadAllTasks,
+      resources, loadResources, meetings, loadMeetings
+    }}>
       {children}
     </DataContext.Provider>
   );

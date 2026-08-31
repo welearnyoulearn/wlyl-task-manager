@@ -19,6 +19,7 @@ import AssignTaskPanel from './components/AssignTaskPanel.jsx';
 import ManageAdminsPanel from './components/ManageAdminsPanel.jsx';
 import ManageMembersPanel from './components/ManageMembersPanel.jsx';
 import ResourcesPanel from './components/ResourcesPanel.jsx';
+import MeetingsPanel from './components/MeetingsPanel.jsx';
 import { Toaster } from './components/ui/toaster.jsx';
 
 const ADMIN_ONLY_TABS = new Set(['history', 'byperson', 'manageadmins', 'tasksboard', 'assigntask', 'managemembers']);
@@ -80,6 +81,7 @@ export default function App() {
               <MyTasksPanel active={activeTab === 'mytasks'} />
               <MyHistoryPanel active={activeTab === 'mine'} />
               <ResourcesPanel active={activeTab === 'resources'} />
+              <MeetingsPanel active={activeTab === 'meetings'} />
               {isAdmin && <HistoryPanel active={activeTab === 'history'} />}
               {isAdmin && <ByPersonPanel active={activeTab === 'byperson'} />}
               <TicketDetailPanel active={activeTab === 'ticketdetail'} />
