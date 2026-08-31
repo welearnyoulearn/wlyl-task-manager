@@ -9,7 +9,8 @@ const R2_UPLOAD_FN_URL = `${SUPABASE_URL}/functions/v1/r2-upload`;
 export const UPLOAD_KINDS = {
   TASK_DESCRIPTION: 'task-description',
   TEST_PLAN: 'test-plan',
-  QA_EVIDENCE: 'qa-evidence'
+  QA_EVIDENCE: 'qa-evidence',
+  RESOURCE: 'resource'
 };
 
 // Screenshots/photos are the only files compressed - test plan/description

@@ -4,7 +4,8 @@ const TABS = [
   { key: 'submit', label: 'Submit Update' },
   { key: 'summary', label: 'Weekly Summary' },
   { key: 'mytasks', label: 'My Tasks' },
-  { key: 'mine', label: 'My History' }
+  { key: 'mine', label: 'My History' },
+  { key: 'resources', label: 'Resources' }
 ];
 
 // Uses shadcn's Tabs for the trigger/list styling and keyboard behavior,
