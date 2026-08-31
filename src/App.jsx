@@ -20,9 +20,10 @@ import ManageAdminsPanel from './components/ManageAdminsPanel.jsx';
 import ManageMembersPanel from './components/ManageMembersPanel.jsx';
 import ResourcesPanel from './components/ResourcesPanel.jsx';
 import MeetingsPanel from './components/MeetingsPanel.jsx';
+import AdminResourcesPanel from './components/AdminResourcesPanel.jsx';
 import { Toaster } from './components/ui/toaster.jsx';
 
-const ADMIN_ONLY_TABS = new Set(['history', 'byperson', 'manageadmins', 'tasksboard', 'assigntask', 'managemembers']);
+const ADMIN_ONLY_TABS = new Set(['history', 'byperson', 'manageadmins', 'tasksboard', 'assigntask', 'managemembers', 'adminresources']);
 
 export default function App() {
   const { currentUser, isAdmin, restoring } = useAuth();
@@ -89,6 +90,7 @@ export default function App() {
               {isAdmin && <AssignTaskPanel active={activeTab === 'assigntask'} />}
               {isAdmin && <ManageAdminsPanel active={activeTab === 'manageadmins'} />}
               {isAdmin && <ManageMembersPanel active={activeTab === 'managemembers'} />}
+              {isAdmin && <AdminResourcesPanel active={activeTab === 'adminresources'} />}
             </div>
           </div>
         )}

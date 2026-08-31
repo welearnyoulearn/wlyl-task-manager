@@ -6,7 +6,8 @@ const ADMIN_TABS = [
   { key: 'tasksboard', label: 'Tasks Board' },
   { key: 'assigntask', label: 'Assign Task' },
   { key: 'manageadmins', label: 'Manage Admins' },
-  { key: 'managemembers', label: 'Manage Members' }
+  { key: 'managemembers', label: 'Manage Members' },
+  { key: 'adminresources', label: 'Admin Resources' }
 ];
 
 // A vertical nav list, not a Tabs widget (Radix Tabs assumes one

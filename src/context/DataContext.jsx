@@ -9,6 +9,7 @@ export function DataProvider({ children }) {
   const [entriesError, setEntriesError] = useState('');
   const [resources, setResources] = useState([]);
   const [meetings, setMeetings] = useState([]);
+  const [adminResources, setAdminResources] = useState([]);
 
   const loadAllEntries = useCallback(async () => {
     try {
@@ -203,10 +204,34 @@ export function DataProvider({ children }) {
     }
   }, []);
 
+  const loadAdminResources = useCallback(async () => {
+    try {
+      const { data, error } = await sb.from('admin_resources').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      const mapped = (data || []).map(r => ({
+        key: r.id,
+        title: r.title,
+        body: r.body,
+        linkUrl: r.link_url,
+        fileUrl: r.file_url,
+        fileName: r.file_name,
+        createdBy: r.created_by,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at
+      }));
+      setAdminResources(mapped);
+      return mapped;
+    } catch (e) {
+      setAdminResources([]);
+      return [];
+    }
+  }, []);
+
   return (
     <DataContext.Provider value={{
       allEntries, allTasks, entriesError, loadAllEntries, loadAllTasks,
-      resources, loadResources, meetings, loadMeetings
+      resources, loadResources, meetings, loadMeetings,
+      adminResources, loadAdminResources
     }}>
       {children}
     </DataContext.Provider>
