@@ -189,6 +189,8 @@ export function DataProvider({ children }) {
         specificDate: m.specific_date,
         timeOfDay: m.time_of_day,
         active: m.active,
+        recipientMode: m.recipient_mode,
+        recipientIds: m.recipient_ids || [],
         createdBy: m.created_by,
         createdAt: m.created_at,
         updatedAt: m.updated_at

@@ -34,8 +34,10 @@ type Schedule = {
   weekday: number | null;
   specific_date: string | null;
   time_of_day: string; // 'HH:MM:SS'
+  recipient_mode: 'everyone' | 'custom';
+  recipient_ids: string[] | null;
 };
-type Profile = { username: string; email: string | null };
+type Profile = { id: string; username: string; email: string | null };
 
 function istNow(): Date {
   return new Date(Date.now() + IST_OFFSET_MS);
@@ -83,18 +85,29 @@ Deno.serve(async (req) => {
 
   const { data: schedules, error: schedulesErr } = await admin
     .from('meeting_schedules')
-    .select('id, title, link_url, kind, weekday, specific_date, time_of_day')
+    .select('id, title, link_url, kind, weekday, specific_date, time_of_day, recipient_mode, recipient_ids')
     .eq('active', true)
     .or(`and(kind.eq.recurring,weekday.eq.${weekday}),and(kind.eq.one_off,specific_date.eq.${today})`);
   if (schedulesErr) {
     return new Response(JSON.stringify({ error: schedulesErr.message }), { status: 500 });
   }
 
-  const { data: profiles, error: profilesErr } = await admin.from('profiles').select('username, email');
+  const { data: profiles, error: profilesErr } = await admin.from('profiles').select('id, username, email');
   if (profilesErr) {
     return new Response(JSON.stringify({ error: profilesErr.message }), { status: 500 });
   }
-  const recipients = (profiles as Profile[]).filter(p => !!p.email);
+  const everyone = (profiles as Profile[]).filter(p => !!p.email);
+  const profileById = new Map((profiles as Profile[]).map(p => [p.id, p]));
+
+  // "custom" mode targets exactly the people picked when scheduling the
+  // meeting; "everyone" (the default, and pre-existing behavior) keeps
+  // going to every profile with an email on file.
+  function recipientsFor(schedule: Schedule): Profile[] {
+    if (schedule.recipient_mode !== 'custom') return everyone;
+    return (schedule.recipient_ids || [])
+      .map(id => profileById.get(id))
+      .filter((p): p is Profile => !!p && !!p.email);
+  }
 
   let sent = 0;
   let skippedAlreadySent = 0;
@@ -123,7 +136,7 @@ Deno.serve(async (req) => {
     }
 
     const { subject, html, text } = buildEmail(mode, schedule);
-    for (const recipient of recipients) {
+    for (const recipient of recipientsFor(schedule)) {
       try {
         const res = await fetch('https://api.resend.com/emails', {
           method: 'POST',

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useData } from '../context/DataContext.jsx';
+import { useProfiles } from '../context/ProfilesContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,7 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-const EMPTY_DRAFT = { title: '', linkUrl: '', kind: 'recurring', weekday: '1', specificDate: '', timeOfDay: '17:00', active: true };
+const EMPTY_DRAFT = { title: '', linkUrl: '', kind: 'recurring', weekday: '1', specificDate: '', timeOfDay: '17:00', active: true, recipientMode: 'everyone', recipientIds: [] };
 
 function todayLocalIso() {
   const d = new Date();
@@ -54,6 +55,7 @@ function formatDate(iso) {
 export default function MeetingsPanel({ active }) {
   const { currentUser, currentUserId, isAdmin } = useAuth();
   const { meetings, loadMeetings } = useData();
+  const { profiles, loadProfiles } = useProfiles();
   const { toast } = useToast();
 
   const [showForm, setShowForm] = useState(false);
@@ -63,11 +65,16 @@ export default function MeetingsPanel({ active }) {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (active) loadMeetings();
+    if (active) {
+      loadMeetings();
+      loadProfiles();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
   const today = todayLocalIso();
+  const profileById = useMemo(() => new Map(profiles.map(p => [p.id, p])), [profiles]);
+  const recipientOptions = useMemo(() => profiles.filter(p => p.email), [profiles]);
 
   // One-off meetings that have already happened just stop being shown -
   // no cleanup job needed, and admins can still see/delete them via a
@@ -94,7 +101,9 @@ export default function MeetingsPanel({ active }) {
       weekday: m.weekday != null ? String(m.weekday) : '1',
       specificDate: m.specificDate || '',
       timeOfDay: m.timeOfDay ? m.timeOfDay.slice(0, 5) : '17:00',
-      active: m.active
+      active: m.active,
+      recipientMode: m.recipientMode || 'everyone',
+      recipientIds: m.recipientIds || []
     });
     setFieldErrors({});
     setShowForm(true);
@@ -106,6 +115,7 @@ export default function MeetingsPanel({ active }) {
     if (!draft.linkUrl.trim()) errors.linkUrl = 'A meeting link is required.';
     if (draft.kind === 'one_off' && !draft.specificDate) errors.specificDate = 'Pick a date.';
     if (!draft.timeOfDay) errors.timeOfDay = 'Pick a time.';
+    if (draft.recipientMode === 'custom' && draft.recipientIds.length === 0) errors.recipients = 'Pick at least one person, or switch to Everyone.';
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
@@ -118,7 +128,9 @@ export default function MeetingsPanel({ active }) {
         weekday: draft.kind === 'recurring' ? Number(draft.weekday) : null,
         specific_date: draft.kind === 'one_off' ? draft.specificDate : null,
         time_of_day: draft.timeOfDay,
-        active: draft.active
+        active: draft.active,
+        recipient_mode: draft.recipientMode,
+        recipient_ids: draft.recipientMode === 'custom' ? draft.recipientIds : null
       };
 
       if (editingKey) {
@@ -153,6 +165,19 @@ export default function MeetingsPanel({ active }) {
     } catch (e) {
       toast({ variant: 'destructive', description: 'Could not delete meeting: ' + e.message });
     }
+  };
+
+  const toggleRecipient = (id) => {
+    setDraft(d => ({
+      ...d,
+      recipientIds: d.recipientIds.includes(id) ? d.recipientIds.filter(x => x !== id) : [...d.recipientIds, id]
+    }));
+  };
+
+  const invitedLabel = (m) => {
+    if (m.recipientMode !== 'custom') return 'Everyone';
+    const names = m.recipientIds.map(id => profileById.get(id)?.username).filter(Boolean);
+    return names.length > 0 ? names.join(', ') : 'No one selected';
   };
 
   const toggleActive = async (m) => {
@@ -225,7 +250,7 @@ export default function MeetingsPanel({ active }) {
                   <a href={m.linkUrl} target="_blank" rel="noreferrer">🔗 Join link</a>
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10 }}>
-                  Scheduled by {m.createdBy}
+                  Scheduled by {m.createdBy} · Invited: {invitedLabel(m)}
                 </div>
               </CardContent>
             </Card>
@@ -287,6 +312,34 @@ export default function MeetingsPanel({ active }) {
                 <Input type="time" value={draft.timeOfDay} onChange={(e) => setDraft(d => ({ ...d, timeOfDay: e.target.value }))} />
                 {fieldErrors.timeOfDay && <div className="text-xs text-destructive mt-1">{fieldErrors.timeOfDay}</div>}
               </div>
+            </div>
+            <div>
+              <Label>Send reminders to</Label>
+              <NativeSelect
+                value={draft.recipientMode}
+                onChange={(e) => setDraft(d => ({ ...d, recipientMode: e.target.value }))}
+              >
+                <option value="everyone">Everyone</option>
+                <option value="custom">Custom selection</option>
+              </NativeSelect>
+              {draft.recipientMode === 'custom' && (
+                <div style={{ marginTop: 8, maxHeight: 180, overflowY: 'auto', border: '1px solid var(--line)', borderRadius: 6, padding: 8 }}>
+                  {recipientOptions.length === 0 && (
+                    <div className="section-hint">No members with an email on file yet.</div>
+                  )}
+                  {recipientOptions.map(p => (
+                    <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '4px 0' }}>
+                      <input
+                        type="checkbox"
+                        checked={draft.recipientIds.includes(p.id)}
+                        onChange={() => toggleRecipient(p.id)}
+                      />
+                      {p.username}
+                    </label>
+                  ))}
+                </div>
+              )}
+              {fieldErrors.recipients && <div className="text-xs text-destructive mt-1">{fieldErrors.recipients}</div>}
             </div>
           </div>
           <DialogFooter>
