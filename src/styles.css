@@ -97,8 +97,15 @@ h1 {
   display: flex; align-items: stretch;
   background: #fff; border: 1px solid var(--line); border-radius: 16px;
   box-shadow: 0 4px 24px rgba(18,79,65,0.06);
-  overflow: hidden;
   min-height: calc(100vh - 200px);
+  /* No overflow: hidden here on purpose - it used to clip #appSidebar's
+     square corners to this box's rounded ones, but ANY non-visible
+     overflow on an ancestor neutralizes position: sticky on a
+     descendant (the sticky element then sticks relative to that
+     ancestor's own non-scrolling box instead of the page's real scroll,
+     which does nothing since the ancestor itself just flows down the
+     page). #appSidebar carries its own matching corner radius below
+     instead, so the shell still reads as one seamless frame. */
 }
 #mainContent { flex: 1; min-width: 0; padding: 28px 32px 40px; }
 
@@ -112,6 +119,7 @@ h1 {
   flex-shrink: 0; width: 220px;
   display: flex; flex-direction: column; gap: 2px;
   background: var(--bg); border-right: 1px solid var(--line);
+  border-radius: 16px 0 0 16px;
   padding: 22px 14px;
   /* Stays in view while #mainContent scrolls the page - #appLayout's
      align-items: stretch would otherwise make the sidebar as tall as
@@ -498,6 +506,7 @@ tbody tr:hover { background: var(--accent-bg); }
   #appSidebar {
     width: 100%; flex-direction: row; flex-wrap: wrap; border-right: none;
     border-bottom: 1px solid var(--line); padding: 14px 10px;
+    border-radius: 16px;
     position: static; max-height: none; overflow-y: visible;
   }
   .sidebar-tab { flex: 1 1 auto; justify-content: center; min-width: 46%; }
