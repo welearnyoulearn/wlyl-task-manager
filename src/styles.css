@@ -113,6 +113,15 @@ h1 {
   display: flex; flex-direction: column; gap: 2px;
   background: var(--bg); border-right: 1px solid var(--line);
   padding: 22px 14px;
+  /* Stays in view while #mainContent scrolls the page - #appLayout's
+     align-items: stretch would otherwise make the sidebar as tall as
+     the content and scroll away with it. align-self: flex-start opts
+     this one child out of that stretch so sticky has a shorter box to
+     stick within; max-height + overflow-y keeps a sidebar taller than
+     the viewport (long admin item list on a short screen) scrollable
+     on its own instead of clipping. */
+  position: sticky; top: 20px; align-self: flex-start;
+  max-height: calc(100vh - 40px); overflow-y: auto;
 }
 .sidebar-section-title {
   font-size: 11px; font-weight: 700; text-transform: uppercase;
@@ -485,7 +494,11 @@ tbody tr:hover { background: var(--accent-bg); }
   .landing-access { padding: 32px 22px 36px; }
   #appLayout { flex-direction: column; gap: 14px; }
   #mainContent { padding: 18px 16px 28px; }
-  #appSidebar { width: 100%; flex-direction: row; flex-wrap: wrap; border-right: none; border-bottom: 1px solid var(--line); padding: 14px 10px; }
+  #appSidebar {
+    width: 100%; flex-direction: row; flex-wrap: wrap; border-right: none;
+    border-bottom: 1px solid var(--line); padding: 14px 10px;
+    position: static; max-height: none; overflow-y: visible;
+  }
   .sidebar-tab { flex: 1 1 auto; justify-content: center; min-width: 46%; }
   .sidebar-tab.active { transform: none; }
   #cornerLoginBtn, #cornerUserBadge { font-size: 13px; padding: 9px 12px; }
