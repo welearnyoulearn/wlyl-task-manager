@@ -115,14 +115,21 @@ export default function MeetingsPanel({ active }) {
     [meetings, today]
   );
 
+  // Re-fetches profiles right when the form opens (not just whenever
+  // the Meetings tab last activated) so a member/admin added minutes
+  // ago - or even by someone else, in another session - definitely
+  // shows up in the Custom-selection recipient picker, instead of
+  // relying on whatever was already in memory.
   const openAddForm = () => {
     setEditingKey(null);
     setDraft(EMPTY_DRAFT);
     setFieldErrors({});
     setShowForm(true);
+    loadProfiles();
   };
 
   const openEditForm = (m) => {
+    loadProfiles();
     setEditingKey(m.key);
     setDraft({
       title: m.title,
