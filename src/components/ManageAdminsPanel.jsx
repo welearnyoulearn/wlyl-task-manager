@@ -7,6 +7,7 @@ import EmailChangeCell from './EmailChangeCell.jsx';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import {
@@ -97,7 +98,7 @@ export default function ManageAdminsPanel({ active }) {
           </div>
           <div className="meta-field" style={{ maxWidth: 220 }}>
             <Label>Set password for them</Label>
-            <Input type="password" placeholder="Set password" value={promotePassword} onChange={(e) => setPromotePassword(e.target.value)} />
+            <PasswordInput placeholder="Set password" value={promotePassword} onChange={(e) => setPromotePassword(e.target.value)} />
           </div>
           <Button onClick={promoteMember}>Promote to Admin</Button>
         </div>
@@ -111,7 +112,7 @@ export default function ManageAdminsPanel({ active }) {
           </div>
           <div className="meta-field" style={{ maxWidth: 220 }}>
             <Label>Password</Label>
-            <Input type="password" placeholder="Set password" value={newAdminPassword} onChange={(e) => setNewAdminPassword(e.target.value)} />
+            <PasswordInput placeholder="Set password" value={newAdminPassword} onChange={(e) => setNewAdminPassword(e.target.value)} />
           </div>
           <div className="meta-field" style={{ maxWidth: 220 }}>
             <Label>Email</Label>

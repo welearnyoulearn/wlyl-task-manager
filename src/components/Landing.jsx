@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 
 function LoginBox({ role, title, icon, hint, open, onToggle, onOpenSetup }) {
@@ -51,8 +52,7 @@ function LoginBox({ role, title, icon, hint, open, onToggle, onOpenSetup }) {
           </div>
           <div className="meta-field" style={{ marginBottom: 14, textAlign: 'left' }}>
             <Label>Password</Label>
-            <Input
-              type="password"
+            <PasswordInput
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

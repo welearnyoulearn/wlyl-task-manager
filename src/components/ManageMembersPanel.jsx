@@ -8,6 +8,7 @@ import EmailChangeCell from './EmailChangeCell.jsx';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import {
@@ -94,7 +95,7 @@ export default function ManageMembersPanel({ active }) {
           </div>
           <div className="meta-field" style={{ maxWidth: 220 }}>
             <Label>Password</Label>
-            <Input type="password" placeholder="Set password" value={newMemberPassword} onChange={(e) => setNewMemberPassword(e.target.value)} />
+            <PasswordInput placeholder="Set password" value={newMemberPassword} onChange={(e) => setNewMemberPassword(e.target.value)} />
           </div>
           <div className="meta-field" style={{ maxWidth: 160 }}>
             <Label>Role</Label>

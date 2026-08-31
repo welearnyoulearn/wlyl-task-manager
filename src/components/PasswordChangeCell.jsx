@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { callManageUser } from '../lib/supabase.js';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -46,7 +46,7 @@ export default function PasswordChangeCell({ username }) {
           </DialogHeader>
           <div>
             <Label>New password</Label>
-            <Input type="password" placeholder="New password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus />
+            <PasswordInput placeholder="New password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus />
             {fieldError && <div className="text-xs text-destructive mt-1">{fieldError}</div>}
           </div>
           <DialogFooter>

@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useProfiles } from '../context/ProfilesContext.jsx';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
@@ -63,7 +64,7 @@ export default function AuthModal({ open, onClose }) {
             </div>
             <div className="meta-field" style={{ marginBottom: 14 }}>
               <Label>Set password</Label>
-              <Input type="password" placeholder="Choose a password" value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} />
+              <PasswordInput placeholder="Choose a password" value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} />
             </div>
             <Button style={{ width: '100%' }} onClick={handleCreateFirstAdmin}>Create Admin</Button>
             {setupStatus && <div className="text-sm text-destructive mt-2">{setupStatus}</div>}
@@ -81,7 +82,7 @@ export default function AuthModal({ open, onClose }) {
             </div>
             <div className="meta-field" style={{ marginBottom: 14 }}>
               <Label>{loginMode === 'admin' ? 'Admin password' : 'Password'}</Label>
-              <Input type="password" placeholder="Password" value={whoAmIPassword} onChange={(e) => setWhoAmIPassword(e.target.value)} />
+              <PasswordInput placeholder="Password" value={whoAmIPassword} onChange={(e) => setWhoAmIPassword(e.target.value)} />
             </div>
             <Button style={{ width: '100%' }} onClick={handleLogin}>Continue</Button>
             {loginStatus && <div className="text-sm text-destructive mt-2">{loginStatus}</div>}
