@@ -372,7 +372,15 @@ tbody tr:hover { background: var(--accent-bg); }
   background: var(--danger-bg); padding: 10px 12px; border-radius: 8px;
   border-left: 3px solid var(--danger);
 }
-.entry-block pre { white-space: pre-wrap; font-family: inherit; margin: 0; }
+/* overflow-wrap: anywhere breaks a word only when it genuinely doesn't
+   fit (unlike word-break: break-all, which breaks eagerly even when
+   unnecessary, degrading normal prose). A credential/URL-shaped line
+   with no spaces (e.g. "GOOGLE_CLIENT_ID=6126...apps.googleusercontent.com")
+   has nowhere else to break on, so pre-wrap alone let it run past the
+   container and blow out the whole page horizontally on mobile -
+   confirmed live: a single <pre> line pushed document scrollWidth to
+   616px against a 390px viewport. */
+.entry-block pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; margin: 0; }
 .empty { color: var(--muted); font-size: 14px; padding: 24px 0; text-align: center; }
 
 /* Resources / Meetings / Admin Resources cards - an icon-badge header,
@@ -397,6 +405,16 @@ tbody tr:hover { background: var(--accent-bg); }
   padding: 6px 12px; border-radius: 999px; text-decoration: none;
   background: var(--accent-bg); color: var(--accent-deep);
   transition: background 0.14s, transform 0.14s;
+  /* A long filename/link label (e.g. an uploaded credentials JSON
+     file) rendered at its full intrinsic width with nothing to stop
+     it - confirmed live: one chip alone was 452px wide against a
+     390px viewport, blowing out the whole page horizontally
+     (scrollWidth 616 vs clientWidth 390, the entire body side-
+     scrollable). max-width caps it and truncates with an ellipsis
+     instead; the full name is still available via the link's title/
+     href on tap or hover. */
+  max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .chip:hover { background: #dcefe8; transform: translateY(-1px); }
 .chip-file { background: #FCF1DE; color: #9C6A16; }
