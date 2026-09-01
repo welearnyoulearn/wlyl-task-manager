@@ -97,7 +97,11 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
   // are already permitted for a plain tester role at the DB layer
   // regardless of the ticket's current qa_status.
   const isDirectTesterAssignee = !isAdmin && currentMemberRole === 'tester' && task.assignee === currentUser;
-  const canResolveQaDirect = isDirectTesterAssignee && task.status !== 'Closed' && qaStatus !== 'Passed';
+  // Also requires the ticket to have actually been accepted (status
+  // past 'Assigned') - without this, Pass/Fail QA showed up even
+  // before Accept Task was ever clicked, since this flag only checked
+  // role/assignee/status-not-Closed/qa-not-Passed, not acceptance.
+  const canResolveQaDirect = isDirectTesterAssignee && task.status !== 'Assigned' && task.status !== 'Closed' && qaStatus !== 'Passed';
 
   const qualifiedTesters = profiles.filter(p => !p.is_admin && (p.member_role === 'tester' || p.member_role === 'both'));
 
@@ -386,9 +390,18 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
           </span>
           <Badge variant={QA_BADGE_VARIANT[qaStatus] || 'qaNotReady'}>QA: {qaStatus}</Badge>
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>Priority: {task.priority || 'Normal'}</span>
-          {task.status === 'Closed' ? null : !canDoDevActions ? null : needsAccept ? (
-            <Button size="sm" onClick={acceptTask} disabled={busy}>Accept Task</Button>
-          ) : (
+          {task.status === 'Closed' ? null : needsAccept ? (
+            // Accept Task is also shown to a tester-role assignee on a
+            // ticket assigned directly to them (a QA-only ticket, no
+            // dev phase) - canDoDevActions alone would hide it, since
+            // that requires developer/both. Once accepted, the status
+            // dropdown below is dev-only again (isDirectTesterAssignee
+            // has nothing further to do at the dev-status layer - Pass/
+            // Fail QA further down covers the rest of their flow).
+            (canDoDevActions || isDirectTesterAssignee) && (
+              <Button size="sm" onClick={acceptTask} disabled={busy}>Accept Task</Button>
+            )
+          ) : canDoDevActions && (
             <NativeSelect
               className="h-auto w-auto py-1 px-2 text-xs"
               value={task.status}
