@@ -106,7 +106,8 @@ export function DataProvider({ children }) {
         qaAssignee: t.qa_assignee,
         qaAssigneeUsername: t.qa_assignee_profile?.username || null,
         comments: (comments || []).filter(c => c.task_id === t.id).map(c => ({
-          author: c.author, text: c.text, at: c.created_at
+          author: c.author, text: c.text, at: c.created_at,
+          attachmentUrls: c.attachment_urls || [], attachmentNames: c.attachment_names || []
         })),
         bugReports: (bugReports || []).filter(b => b.task_id === t.id).map(b => ({
           key: b.id,

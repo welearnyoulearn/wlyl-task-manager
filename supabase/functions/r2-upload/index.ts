@@ -44,7 +44,8 @@ const KIND_CONFIG: Record<string, { prefix: string; maxBytes: number }> = {
   'task-description': { prefix: 'task-description', maxBytes: 15 * 1024 * 1024 },
   'test-plan': { prefix: 'test-plan', maxBytes: 15 * 1024 * 1024 },
   'qa-evidence': { prefix: 'qa-evidence', maxBytes: 6 * 1024 * 1024 },
-  'resource': { prefix: 'resource', maxBytes: 20 * 1024 * 1024 }
+  'resource': { prefix: 'resource', maxBytes: 20 * 1024 * 1024 },
+  'comment-attachment': { prefix: 'comment-attachment', maxBytes: 15 * 1024 * 1024 }
 };
 
 function safeFileName(name: string): string {

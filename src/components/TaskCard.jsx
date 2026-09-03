@@ -8,12 +8,12 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useProfiles } from '../context/ProfilesContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { uploadFile, UPLOAD_KINDS } from '../lib/upload.js';
-import { sendCommentPostedEmail } from '../lib/email.js';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { NativeSelect } from '@/components/ui/native-select';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -56,11 +56,16 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
   const [showHoldReasonForm, setShowHoldReasonForm] = useState(false);
   const [holdReasonDraft, setHoldReasonDraft] = useState('');
   const [holdReasonError, setHoldReasonError] = useState('');
+  const [showExtendDueForm, setShowExtendDueForm] = useState(false);
+  const [extendDueDraft, setExtendDueDraft] = useState('');
+  const [extendDueError, setExtendDueError] = useState('');
   const [busy, setBusy] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   const needsAccept = task.status === 'Assigned';
   const qaStatus = task.qaStatus || 'Not Ready';
+  const isOverdue = !!task.dueDate && task.status !== 'Done' && task.status !== 'Closed'
+    && task.dueDate < new Date().toISOString().slice(0, 10);
 
   // Role gating: admins can always act, regardless of member_role.
   // A member with no role set yet (null, before Phase 4's migration
@@ -176,6 +181,38 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
     }
   };
 
+  const openExtendDueForm = () => {
+    setExtendDueDraft(task.dueDate || '');
+    setExtendDueError('');
+    setShowExtendDueForm(true);
+  };
+
+  // Admin-only, not gated to the assignee like every other status/date
+  // write - extending a due date is a scheduling call the admin who
+  // set it (or any admin) should be able to make, not something that
+  // needs the assignee's own action to change. No DB trigger addition
+  // needed for this: due_date isn't one of the columns
+  // enforce_tasks_column_role_gate restricts, and tasks_update_dev_fields'
+  // RLS already lets an admin update any row.
+  const submitExtendDueDate = async () => {
+    if (!extendDueDraft) {
+      setExtendDueError('Pick a due date.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error } = await sb.from('tasks').update({ due_date: extendDueDraft }).eq('id', task.key);
+      if (error) throw error;
+      setShowExtendDueForm(false);
+      await refresh();
+      toast({ description: `${task.ticketId} due date updated to ${extendDueDraft}.` });
+    } catch (e) {
+      toast({ variant: 'destructive', description: 'Could not update due date: ' + e.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const deleteTask = async () => {
     setBusy(true);
     try {
@@ -190,39 +227,25 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
     }
   };
 
-  const postComment = async (text) => {
+  const postComment = async (text, files) => {
     try {
+      let attachmentUrls = [];
+      let attachmentNames = [];
+      if (files && files.length > 0) {
+        const uploaded = await Promise.all(files.map(f => uploadFile(UPLOAD_KINDS.COMMENT_ATTACHMENT, f)));
+        attachmentUrls = uploaded.map(u => u.url);
+        attachmentNames = uploaded.map(u => u.fileName);
+      }
       const { error } = await sb.from('task_comments').insert({
-        task_id: task.key, author: currentUser, text
+        task_id: task.key, author: currentUser, text,
+        attachment_urls: attachmentUrls, attachment_names: attachmentNames
       });
       if (error) throw error;
       await refresh();
-
-      // Notify every other participant on this ticket - the assignee,
-      // the QA assignee (if set), and the admin who assigned it -
-      // never the commenter themselves. Matched by username against
-      // profiles for a real email; deduped so someone wearing two of
-      // these hats (e.g. assignee is also the one who assigned it to
-      // themselves) doesn't get emailed twice.
-      const participantUsernames = new Set(
-        [task.assignee, task.qaAssigneeUsername, task.assignedBy]
-          .filter(Boolean)
-          .map(u => u.toLowerCase())
-          .filter(u => u !== currentUser.toLowerCase())
-      );
-      for (const username of participantUsernames) {
-        const recipient = profiles.find(p => p.username.toLowerCase() === username);
-        if (recipient?.email) {
-          sendCommentPostedEmail({
-            to: recipient.email,
-            recipientName: recipient.username,
-            ticketId: task.ticketId,
-            title: task.title,
-            authorName: currentUser,
-            text
-          });
-        }
-      }
+      // Deliberately no email notification on comments - tried and
+      // explicitly reverted per the user's request; comments are meant
+      // to be a quiet, low-friction follow-up channel, not another
+      // inbox trigger for every reply.
     } catch (e) {
       toast({ variant: 'destructive', description: 'Could not post comment: ' + e.message });
     }
@@ -366,7 +389,12 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
             &nbsp;{task.title} {showAssignee && (
               <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: 12 }}> &rarr; {task.assignee}</span>
             )}
-            {showAssignee && task.assignedBy && (
+            {task.assignedBy && (
+              // Always shown, not gated behind showAssignee (which only
+              // controls whether the dev-ASSIGNEE label appears) - a
+              // member looking at their own My Tasks list still needs
+              // to know which admin assigned them the ticket, same as
+              // an admin browsing Tasks Board does.
               <span style={{ fontWeight: 700, color: 'var(--accent-deep)', fontSize: 12 }}> &middot; by {task.assignedBy}</span>
             )}
             {task.qaAssigneeUsername && (
@@ -376,7 +404,10 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
               <span style={{ fontWeight: 600, color: 'var(--danger)', fontSize: 12 }}> &middot; QA: unassigned</span>
             )}
           </span>
-          <span className="entry-week">{task.dueDate ? 'Due ' + task.dueDate : ''}</span>
+          <span className="entry-week">
+            {isOverdue && <Badge variant="destructive" className="mr-1 align-middle">⚠️ Overdue</Badge>}
+            {task.dueDate ? 'Due ' + task.dueDate : ''}
+          </span>
         </div>
         <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
           Assigned {task.assignedAt ? new Date(task.assignedAt).toLocaleString() : '—'}
@@ -440,6 +471,11 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
             >
               {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
             </NativeSelect>
+          )}
+          {isAdmin && task.status !== 'Closed' && (
+            <Button size="sm" variant={isOverdue ? 'destructive' : 'ghost'} onClick={openExtendDueForm} disabled={busy}>
+              {isOverdue ? 'Extend overdue date' : 'Change due date'}
+            </Button>
           )}
           {isAdmin && qaStatus === 'Passed' && task.status !== 'Closed' && (
             <AlertDialog>
@@ -576,6 +612,29 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
             <DialogFooter>
               <Button variant="ghost" onClick={() => setShowHoldReasonForm(false)} disabled={busy}>Cancel</Button>
               <Button onClick={submitHoldReason} disabled={busy}>Submit & Put On Hold</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showExtendDueForm} onOpenChange={(open) => { if (!open) setShowExtendDueForm(false); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Change due date</DialogTitle>
+              <DialogDescription>
+                {task.ticketId} — {task.title}
+              </DialogDescription>
+            </DialogHeader>
+            <div>
+              <Input
+                type="date"
+                value={extendDueDraft}
+                onChange={(e) => setExtendDueDraft(e.target.value)}
+              />
+              {extendDueError && <div className="text-xs text-destructive mt-1">{extendDueError}</div>}
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setShowExtendDueForm(false)} disabled={busy}>Cancel</Button>
+              <Button onClick={submitExtendDueDate} disabled={busy}>Save due date</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

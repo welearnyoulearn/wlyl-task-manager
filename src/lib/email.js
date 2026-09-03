@@ -92,30 +92,6 @@ export function sendQaFailedEmail({ to, recipientName, ticketId, title, reporter
   return sendEmail({ to, subject, html, text });
 }
 
-// Fired when someone posts a comment on a ticket - comments previously
-// had no notification path at all, so a follow-up like "need updated
-// document" only reached the other person if they happened to reopen
-// the ticket. Sent to every other participant (assignee, QA assignee,
-// the admin who assigned it), never back to the commenter themselves -
-// callers build that recipient list and call this once per recipient.
-export function sendCommentPostedEmail({ to, recipientName, ticketId, title, authorName, text }) {
-  const link = ticketUrl(ticketId);
-  const subject = `[${ticketId}] New comment from ${authorName}: ${title}`;
-  const html = `
-    <p>Hi ${recipientName},</p>
-    <p>${authorName} commented on <strong>${ticketId} — ${title}</strong>:</p>
-    <p style="padding:10px 14px;background:#f4f2ea;border-left:3px solid #1F8A70;border-radius:4px;">${escapeHtml(text).replace(/\n/g, '<br/>')}</p>
-    <p><a href="${link}">Open in WLYL Hub</a></p>
-  `;
-  const textBody = [
-    `Hi ${recipientName},`,
-    `${authorName} commented on ${ticketId} - ${title}:`,
-    `"${text}"`,
-    `Open in WLYL Hub: ${link}`
-  ].join('\n\n');
-  return sendEmail({ to, subject, html, text: textBody });
-}
-
 // Fired once, immediately, when an admin schedules a new meeting - on
 // top of (not instead of) the morning-of and ~15-min-before reminders
 // from the meeting-reminders cron. Gives people the details up front

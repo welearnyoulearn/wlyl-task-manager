@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   LayoutGrid, Clock, Circle, PlayCircle, PauseCircle, CheckCircle2, Archive,
-  CircleDot, FlaskConical, Beaker, XCircle
+  CircleDot, FlaskConical, Beaker, XCircle, AlertTriangle
 } from 'lucide-react';
 import { useData } from '../context/DataContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -77,12 +77,23 @@ const SORT_OPTIONS = [
   { value: 'updated', label: 'Last updated' }
 ];
 
+// A ticket counts as overdue when its due_date has passed and it
+// isn't finished yet - Done/Closed tickets don't keep aging into
+// "overdue" once the work is actually complete. Matches the same
+// still-in-flight statuses the due-date-reminders Edge Function
+// treats as "still owed" (see supabase/functions/due-date-reminders).
+function isOverdue(task) {
+  if (!task.dueDate || task.status === 'Done' || task.status === 'Closed') return false;
+  return task.dueDate < new Date().toISOString().slice(0, 10);
+}
+
 export default function TasksBoardPanel({ active }) {
   const { allTasks, loadAllTasks } = useData();
   const { loadProfiles } = useAuth();
   const [personFilter, setPersonFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [qaStatusFilter, setQaStatusFilter] = useState('');
+  const [overdueOnly, setOverdueOnly] = useState(false);
   const [sortBy, setSortBy] = useState('created');
   const [search, setSearch] = useState('');
 
@@ -114,6 +125,7 @@ export default function TasksBoardPanel({ active }) {
     if (personFilter) f = f.filter(t => t.assignee === personFilter);
     if (statusFilter) f = f.filter(t => t.status === statusFilter);
     if (qaStatusFilter) f = f.filter(t => (t.qaStatus || 'Not Ready') === qaStatusFilter);
+    if (overdueOnly) f = f.filter(isOverdue);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       f = f.filter(t => t.ticketId?.toLowerCase().includes(q) || t.title?.toLowerCase().includes(q));
@@ -124,7 +136,7 @@ export default function TasksBoardPanel({ active }) {
     // 'created' needs no explicit sort: allTasks already arrives ordered
     // by created_at desc from loadAllTasks, and filtering preserves order.
     return f;
-  }, [allTasks, personFilter, statusFilter, qaStatusFilter, sortBy, search]);
+  }, [allTasks, personFilter, statusFilter, qaStatusFilter, overdueOnly, sortBy, search]);
 
   // Counts/cards are computed from allTasks (minus Closed, for the same
   // reason as the list above) rather than from `filtered` - a summary
@@ -148,7 +160,8 @@ export default function TasksBoardPanel({ active }) {
     inProgress: scoped.filter(t => t.status === 'In Progress').length,
     onHold: scoped.filter(t => t.status === 'On Hold').length,
     done: scoped.filter(t => t.status === 'Done').length,
-    closed: allTasks.filter(t => t.status === 'Closed' && (!personFilter || t.assignee === personFilter)).length
+    closed: allTasks.filter(t => t.status === 'Closed' && (!personFilter || t.assignee === personFilter)).length,
+    overdue: scoped.filter(isOverdue).length
   }), [scoped, allTasks, personFilter]);
 
   const qaCounts = useMemo(() => ({
@@ -164,6 +177,7 @@ export default function TasksBoardPanel({ active }) {
   // without using the Status dropdown separately.
   const toggleStatusFilter = (value) => setStatusFilter(prev => (prev === value ? '' : value));
   const toggleQaStatusFilter = (value) => setQaStatusFilter(prev => (prev === value ? '' : value));
+  const toggleOverdueOnly = () => setOverdueOnly(prev => !prev);
 
   return (
     <div className={`panel ${active ? 'active' : ''}`} id="panel-tasksboard">
@@ -182,6 +196,8 @@ export default function TasksBoardPanel({ active }) {
           active={statusFilter === 'Done'} onClick={() => toggleStatusFilter('Done')} />
         <SummaryCard value={counts.closed} label="Closed" {...STATUS_CARD_STYLE.Closed}
           active={statusFilter === 'Closed'} onClick={() => toggleStatusFilter('Closed')} />
+        <SummaryCard value={counts.overdue} label="Overdue" color="#a83232" bg="#fbeceb" icon={AlertTriangle}
+          active={overdueOnly} onClick={toggleOverdueOnly} />
       </div>
       <div className="summary-row" id="qaSummaryRow">
         <SummaryCard value={qaCounts.notReady} label="QA: Not ready" {...QA_CARD_STYLE['Not Ready']}

@@ -10,7 +10,8 @@ export const UPLOAD_KINDS = {
   TASK_DESCRIPTION: 'task-description',
   TEST_PLAN: 'test-plan',
   QA_EVIDENCE: 'qa-evidence',
-  RESOURCE: 'resource'
+  RESOURCE: 'resource',
+  COMMENT_ATTACHMENT: 'comment-attachment'
 };
 
 // Screenshots/photos are the only files compressed - test plan/description
