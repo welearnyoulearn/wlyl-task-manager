@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useProfiles } from '../context/ProfilesContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { uploadFile, UPLOAD_KINDS } from '../lib/upload.js';
+import { sendCommentPostedEmail } from '../lib/email.js';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -196,6 +197,32 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
       });
       if (error) throw error;
       await refresh();
+
+      // Notify every other participant on this ticket - the assignee,
+      // the QA assignee (if set), and the admin who assigned it -
+      // never the commenter themselves. Matched by username against
+      // profiles for a real email; deduped so someone wearing two of
+      // these hats (e.g. assignee is also the one who assigned it to
+      // themselves) doesn't get emailed twice.
+      const participantUsernames = new Set(
+        [task.assignee, task.qaAssigneeUsername, task.assignedBy]
+          .filter(Boolean)
+          .map(u => u.toLowerCase())
+          .filter(u => u !== currentUser.toLowerCase())
+      );
+      for (const username of participantUsernames) {
+        const recipient = profiles.find(p => p.username.toLowerCase() === username);
+        if (recipient?.email) {
+          sendCommentPostedEmail({
+            to: recipient.email,
+            recipientName: recipient.username,
+            ticketId: task.ticketId,
+            title: task.title,
+            authorName: currentUser,
+            text
+          });
+        }
+      }
     } catch (e) {
       toast({ variant: 'destructive', description: 'Could not post comment: ' + e.message });
     }
@@ -338,6 +365,9 @@ export default function TaskCard({ task, showAssignee, onChanged, needsAction })
             <span className="ticket-link" onClick={() => openTicketDetail(task.ticketId || '')}>{task.ticketId || ''}</span>
             &nbsp;{task.title} {showAssignee && (
               <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: 12 }}> &rarr; {task.assignee}</span>
+            )}
+            {showAssignee && task.assignedBy && (
+              <span style={{ fontWeight: 700, color: 'var(--accent-deep)', fontSize: 12 }}> &middot; by {task.assignedBy}</span>
             )}
             {task.qaAssigneeUsername && (
               <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: 12 }}> &middot; QA: {task.qaAssigneeUsername}</span>
