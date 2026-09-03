@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
-  FolderOpen, Calendar, FileText, Users, ClipboardList,
+  FolderOpen, Calendar, FileText, Users, UserSquare2, ClipboardList,
   UserPlus, ShieldCheck, UserCog, Lock, Menu, X
 } from 'lucide-react';
 
@@ -17,6 +17,7 @@ const GENERAL_ITEMS = [
 const ADMIN_ITEMS = [
   { key: 'history', label: 'Weekly Reports', icon: FileText },
   { key: 'byperson', label: 'By Person', icon: Users },
+  { key: 'byadmin', label: 'By Admin', icon: UserSquare2 },
   { key: 'tasksboard', label: 'Tasks Board', icon: ClipboardList },
   { key: 'assigntask', label: 'Assign Task', icon: UserPlus },
   { key: 'manageadmins', label: 'Manage Admins', icon: ShieldCheck },

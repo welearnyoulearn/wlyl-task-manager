@@ -13,6 +13,7 @@ import MyTasksPanel from './components/MyTasksPanel.jsx';
 import MyHistoryPanel from './components/MyHistoryPanel.jsx';
 import HistoryPanel from './components/HistoryPanel.jsx';
 import ByPersonPanel from './components/ByPersonPanel.jsx';
+import ByAdminPanel from './components/ByAdminPanel.jsx';
 import TicketDetailPanel from './components/TicketDetailPanel.jsx';
 import TasksBoardPanel from './components/TasksBoardPanel.jsx';
 import AssignTaskPanel from './components/AssignTaskPanel.jsx';
@@ -23,7 +24,7 @@ import MeetingsPanel from './components/MeetingsPanel.jsx';
 import AdminResourcesPanel from './components/AdminResourcesPanel.jsx';
 import { Toaster } from './components/ui/toaster.jsx';
 
-const ADMIN_ONLY_TABS = new Set(['history', 'byperson', 'manageadmins', 'tasksboard', 'assigntask', 'managemembers', 'adminresources']);
+const ADMIN_ONLY_TABS = new Set(['history', 'byperson', 'byadmin', 'manageadmins', 'tasksboard', 'assigntask', 'managemembers', 'adminresources']);
 
 export default function App() {
   const { currentUser, isAdmin, restoring } = useAuth();
@@ -99,6 +100,7 @@ export default function App() {
               <MeetingsPanel active={activeTab === 'meetings'} />
               {isAdmin && <HistoryPanel active={activeTab === 'history'} />}
               {isAdmin && <ByPersonPanel active={activeTab === 'byperson'} />}
+              {isAdmin && <ByAdminPanel active={activeTab === 'byadmin'} />}
               <TicketDetailPanel active={activeTab === 'ticketdetail'} />
               {isAdmin && <TasksBoardPanel active={activeTab === 'tasksboard'} />}
               {isAdmin && <AssignTaskPanel active={activeTab === 'assigntask'} />}
